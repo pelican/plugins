@@ -13,7 +13,7 @@ Note: You can't create subdomains for servers with `0.0.0.0` or `::` as allocati
 
 ## Configuring domains
 
-Each domain is composed of a name and an optional prefix. The name must be a valid Cloudflare Zone ID, while the prefix can be used to specify a subdomain on which the server subdomains will be created.
+Each domain is composed of a name and an optional prefix. The name must be a valid Cloudflare Zone, while the prefix can be used to specify a subdomain on which the server subdomains will be created.
 
 For example: when creating a subdomain `server1` on a domain with name `example.com` and prefix `abc`, the created record will be `server1.abc.example.com`.
 

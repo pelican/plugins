@@ -56,6 +56,8 @@ class CloudflareDomainResource extends Resource
             ->columns([
                 TextColumn::make('name')
                     ->label(trans('subdomains::strings.name')),
+                TextColumn::make('prefix')
+                    ->label(trans('subdomains::strings.prefix')),
                 TextColumn::make('subdomains_count')
                     ->label(trans_choice('subdomains::strings.subdomain', 2))
                     ->counts('subdomains'),
@@ -116,12 +118,14 @@ class CloudflareDomainResource extends Resource
     public static function form(Schema $schema): Schema
     {
         return $schema
-            ->columns(1)
+            ->columns(2)
             ->components([
                 TextInput::make('name')
                     ->label(trans('subdomains::strings.name'))
                     ->required()
                     ->unique(),
+                TextInput::make('prefix')
+                    ->label(trans('subdomains::strings.prefix')),
             ]);
     }
 

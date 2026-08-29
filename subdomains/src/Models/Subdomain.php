@@ -75,7 +75,7 @@ class Subdomain extends Model implements HasLabel
                 throw new Exception('Server has no SRV type');
             }
 
-            $searchName = "$srvServiceType->value.$this->name";
+            $searchName = $this->domain->prependPrefix("$srvServiceType->value.$this->name");
 
             $payload = [
                 'name' => $searchName,

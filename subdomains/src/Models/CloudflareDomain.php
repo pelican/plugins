@@ -10,12 +10,14 @@ use Illuminate\Support\Facades\Http;
 /**
  * @property int $id
  * @property string $name
+ * @property ?string $prefix
  * @property ?string $cloudflare_id
  */
 class CloudflareDomain extends Model
 {
     protected $fillable = [
         'name',
+        'prefix',
         'cloudflare_id',
     ];
 
@@ -31,6 +33,11 @@ class CloudflareDomain extends Model
     public function subdomains(): HasMany
     {
         return $this->hasMany(Subdomain::class, 'domain_id');
+    }
+
+    public function prependPrefix(string $subdomain): string
+    {
+        return is_null($this->prefix) ? $subdomain : "$subdomain.$this->prefix";
     }
 
     /** @throws Exception */

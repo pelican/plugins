@@ -13,6 +13,7 @@ return [
     'create_subdomain' => 'Create Subdomain',
 
     'name' => 'Name',
+    'prefix' => 'Prefix',
     'record_type' => 'Record type',
     'is_synced' => 'Is Synced?',
     'srv_target' => 'SRV target',

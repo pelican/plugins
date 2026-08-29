@@ -116,7 +116,7 @@ class SubdomainRelationManager extends RelationManager
                     ->alphaDash()
                     ->rule(new NotOnBlacklist())
                     ->columnSpanFull()
-                    ->suffix(fn (Get $get) => '.' . CloudflareDomain::find($get('domain_id'))?->name),
+                    ->suffix(fn (Get $get) => '.' . CloudflareDomain::find($get('domain_id'))?->nameWithPrefix()),
                 Select::make('domain_id')
                     ->label(trans_choice('subdomains::strings.domain', 1))
                     ->disabledOn('edit')

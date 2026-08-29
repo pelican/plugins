@@ -35,6 +35,11 @@ class CloudflareDomain extends Model
         return $this->hasMany(Subdomain::class, 'domain_id');
     }
 
+    public function nameWithPrefix(): string
+    {
+        return is_null($this->prefix) ? $this->name : "$this->prefix.$this->name";
+    }
+
     public function prependPrefix(string $subdomain): string
     {
         return is_null($this->prefix) ? $subdomain : "$subdomain.$this->prefix";

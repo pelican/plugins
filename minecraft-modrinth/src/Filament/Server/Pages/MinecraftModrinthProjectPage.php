@@ -4,7 +4,6 @@ namespace Boy132\MinecraftModrinth\Filament\Server\Pages;
 
 use App\Filament\Server\Resources\Files\Pages\ListFiles;
 use App\Models\Server;
-use App\Repositories\Daemon\DaemonFileRepository;
 use App\Traits\Filament\BlockAccessInConflict;
 use Boy132\MinecraftModrinth\Enums\ModrinthProjectType;
 use Boy132\MinecraftModrinth\Facades\MinecraftModrinth;
@@ -27,7 +26,6 @@ use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Table;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\HtmlString;
 
@@ -133,6 +131,42 @@ abstract class MinecraftModrinthProjectPage extends Page implements HasTable
     }
 
     /**
+     * Fetch the versions of every project on the current page up front.
+     *
+     * Each installed row asks for its versions to decide between the "installed" and "update"
+     * action, so without this the installed tab does one Modrinth request per row, one after
+     * the other, and a full page can take longer than the request is allowed to run.
+     *
+     * @param  array<int|string, string>  $projectIds
+     */
+    protected function primeVersionsCache(array $projectIds): void
+    {
+        $projectIds = array_values(array_diff(array_unique(array_filter($projectIds)), array_keys($this->versionsCache)));
+
+        if (count($projectIds) < 2) {
+            return;
+        }
+
+        /** @var Server $server */
+        $server = Filament::getTenant();
+
+        $this->versionsCache += MinecraftModrinth::getProjectVersionsBulk($projectIds, $server);
+    }
+
+    /**
+     * Drop everything read from the server so the next render reflects what is actually on disk.
+     */
+    protected function forgetInstalledState(bool $refresh = true): void
+    {
+        $this->installedModsMetadata = null;
+        $this->versionsCache = [];
+
+        if ($refresh) {
+            $this->js('$wire.$refresh()');
+        }
+    }
+
+    /**
      * @param  array<int, array{primary: bool, filename: string, url: string}>  $files
      * @return array{primary: bool, filename: string, url: string}|null
      */
@@ -174,17 +208,12 @@ abstract class MinecraftModrinthProjectPage extends Page implements HasTable
         array $primaryFile,
         ?array $installedMod = null
     ): void {
-        $fileRepository = app(DaemonFileRepository::class);
-
         $safeNewFilename = $this->validateFilename($primaryFile['filename']);
         $oldFilename = $installedMod ? $this->validateFilename($installedMod['filename']) : null;
 
         $folder = static::$modrinthProjectType->getFolder();
 
-        $fileRepository
-            ->setServer($server)
-            ->pull($primaryFile['url'], $folder)
-            ->throw();
+        MinecraftModrinth::downloadFile($server, $primaryFile['url'], $folder, $safeNewFilename);
 
         $saved = MinecraftModrinth::saveModMetadata(
             $server,
@@ -201,12 +230,7 @@ abstract class MinecraftModrinthProjectPage extends Page implements HasTable
         if (!$saved) {
             if (!$oldFilename || $oldFilename !== $safeNewFilename) {
                 try {
-                    Http::daemon($server->node)
-                        ->post("/api/servers/{$server->uuid}/files/delete", [
-                            'root' => '/',
-                            'files' => [$folder . '/' . $safeNewFilename],
-                        ])
-                        ->throw();
+                    MinecraftModrinth::deleteFile($server, $folder, $safeNewFilename);
                 } catch (Exception $rollbackException) {
                     report($rollbackException);
                 }
@@ -217,20 +241,10 @@ abstract class MinecraftModrinthProjectPage extends Page implements HasTable
 
         if ($oldFilename && $oldFilename !== $safeNewFilename) {
             try {
-                Http::daemon($server->node)
-                    ->post("/api/servers/{$server->uuid}/files/delete", [
-                        'root' => '/',
-                        'files' => [$folder . '/' . $oldFilename],
-                    ])
-                    ->throw();
+                MinecraftModrinth::deleteFile($server, $folder, $oldFilename);
             } catch (Exception $deleteException) {
                 try {
-                    Http::daemon($server->node)
-                        ->post("/api/servers/{$server->uuid}/files/delete", [
-                            'root' => '/',
-                            'files' => [$folder . '/' . $safeNewFilename],
-                        ])
-                        ->throw();
+                    MinecraftModrinth::deleteFile($server, $folder, $safeNewFilename);
                 } catch (Exception $rollbackException) {
                     report($rollbackException);
                 }
@@ -275,11 +289,20 @@ abstract class MinecraftModrinthProjectPage extends Page implements HasTable
                         }));
                     }
 
+                    // Sort by title so a row keeps its place instead of moving around whenever its
+                    // metadata entry is rewritten by an install, update or failed update.
+                    usort($installedMods, fn (array $a, array $b) => strcasecmp($a['project_title'], $b['project_title']));
+
                     $projects = MinecraftModrinth::getInstalledModsFromModrinth($installedMods, $page);
+
+                    $this->primeVersionsCache(array_column($projects, 'project_id'));
 
                     return new LengthAwarePaginator($projects, count($installedMods), 20, $page);
                 } else {
                     $response = MinecraftModrinth::getProjects($server, static::$modrinthProjectType, $page, $search);
+
+                    $installedIds = array_column($this->getInstalledModsMetadata(), 'project_id');
+                    $this->primeVersionsCache(array_intersect(array_column($response['hits'], 'project_id'), $installedIds));
 
                     return new LengthAwarePaginator($response['hits'], $response['total_hits'], 20, $page);
                 }
@@ -383,9 +406,7 @@ abstract class MinecraftModrinthProjectPage extends Page implements HasTable
 
                                             $this->performInstallOrUpdate($server, $record, $versionData, $primaryFile, $installedMod);
 
-                                            $this->installedModsMetadata = null;
-                                            $this->versionsCache = [];
-                                            $this->js('$wire.$refresh()');
+                                            $this->forgetInstalledState();
 
                                             Notification::make()
                                                 ->title(trans('minecraft-modrinth::strings.notifications.install_success'))
@@ -398,9 +419,7 @@ abstract class MinecraftModrinthProjectPage extends Page implements HasTable
                                         } catch (Exception $exception) {
                                             report($exception);
 
-                                            $this->installedModsMetadata = null;
-                                            $this->versionsCache = [];
-                                            $this->js('$wire.$refresh()');
+                                            $this->forgetInstalledState();
 
                                             Notification::make()
                                                 ->title(trans('minecraft-modrinth::strings.notifications.install_failed'))
@@ -459,8 +478,7 @@ abstract class MinecraftModrinthProjectPage extends Page implements HasTable
 
                             $this->performInstallOrUpdate($server, $record, $latestVersion, $primaryFile);
 
-                            $this->installedModsMetadata = null;
-                            $this->versionsCache = [];
+                            $this->forgetInstalledState();
 
                             Notification::make()
                                 ->title(trans('minecraft-modrinth::strings.notifications.install_success'))
@@ -473,8 +491,7 @@ abstract class MinecraftModrinthProjectPage extends Page implements HasTable
                         } catch (Exception $exception) {
                             report($exception);
 
-                            $this->installedModsMetadata = null;
-                            $this->versionsCache = [];
+                            $this->forgetInstalledState();
 
                             Notification::make()
                                 ->title(trans('minecraft-modrinth::strings.notifications.install_failed'))
@@ -541,8 +558,7 @@ abstract class MinecraftModrinthProjectPage extends Page implements HasTable
 
                             $this->performInstallOrUpdate($server, $record, $latestVersion, $primaryFile, $installedMod);
 
-                            $this->installedModsMetadata = null;
-                            $this->versionsCache = [];
+                            $this->forgetInstalledState();
 
                             Notification::make()
                                 ->title(trans('minecraft-modrinth::strings.notifications.update_success'))
@@ -554,8 +570,7 @@ abstract class MinecraftModrinthProjectPage extends Page implements HasTable
                         } catch (Exception $exception) {
                             report($exception);
 
-                            $this->installedModsMetadata = null;
-                            $this->versionsCache = [];
+                            $this->forgetInstalledState();
 
                             Notification::make()
                                 ->title(trans('minecraft-modrinth::strings.notifications.update_failed'))
@@ -611,14 +626,11 @@ abstract class MinecraftModrinthProjectPage extends Page implements HasTable
 
                             $folder = static::$modrinthProjectType->getFolder();
 
-                            Http::daemon($server->node)
-                                ->post("/api/servers/{$server->uuid}/files/delete", [
-                                    'root' => '/',
-                                    'files' => [$folder . '/' . $safeFilename],
-                                ])
-                                ->throw();
+                            MinecraftModrinth::deleteFile($server, $folder, $safeFilename);
 
                             $metadataRemoved = MinecraftModrinth::removeModMetadata($server, static::$modrinthProjectType, $record['project_id']);
+
+                            $this->forgetInstalledState();
 
                             if (!$metadataRemoved) {
                                 Log::warning('Failed to remove mod metadata after successful file deletion', [
@@ -626,20 +638,17 @@ abstract class MinecraftModrinthProjectPage extends Page implements HasTable
                                     'server_id' => $server->id,
                                 ]);
 
-                                if (is_array($this->installedModsMetadata)) {
-                                    $this->installedModsMetadata = array_values(
-                                        array_filter($this->installedModsMetadata, fn ($mod) => $mod['project_id'] !== $record['project_id'])
-                                    );
-                                }
+                                // The jar is gone but the metadata file still lists it, so the row
+                                // stays. Say so instead of reporting a clean uninstall.
+                                Notification::make()
+                                    ->title(trans('minecraft-modrinth::strings.notifications.uninstall_partial'))
+                                    ->body(trans('minecraft-modrinth::strings.notifications.uninstall_partial_body', [
+                                        'name' => $record['title'],
+                                    ]))
+                                    ->warning()
+                                    ->send();
 
-                                unset($this->versionsCache[$record['project_id']]);
-                            } else {
-                                $this->installedModsMetadata = null;
-                                $this->versionsCache = [];
-                            }
-
-                            if ($this->activeTab === 'installed') {
-                                $this->js('$wire.$refresh()');
+                                return;
                             }
 
                             Notification::make()
@@ -652,12 +661,7 @@ abstract class MinecraftModrinthProjectPage extends Page implements HasTable
                         } catch (Exception $exception) {
                             report($exception);
 
-                            $this->installedModsMetadata = null;
-                            $this->versionsCache = [];
-
-                            if ($this->activeTab === 'installed') {
-                                $this->js('$wire.$refresh()');
-                            }
+                            $this->forgetInstalledState();
 
                             Notification::make()
                                 ->title(trans('minecraft-modrinth::strings.notifications.uninstall_failed'))
@@ -703,23 +707,9 @@ abstract class MinecraftModrinthProjectPage extends Page implements HasTable
                             ->badge(),
                         TextEntry::make('installed')
                             ->label(fn () => trans('minecraft-modrinth::strings.page.installed', ['type' => static::$modrinthProjectType?->getLabel() ?? 'Modrinth']))
-                            ->state(function (DaemonFileRepository $fileRepository) use ($server) {
-                                try {
-                                    $files = $fileRepository->setServer($server)->getDirectory(static::$modrinthProjectType->getFolder());
-
-                                    if (isset($files['error'])) {
-                                        throw new Exception($files['error']);
-                                    }
-
-                                    return collect($files)
-                                        ->filter(fn ($file) => $file['mime'] === 'application/jar' || str($file['name'])->lower()->endsWith('.jar'))
-                                        ->count();
-                                } catch (Exception $exception) {
-                                    report($exception);
-
-                                    return trans('minecraft-modrinth::strings.page.unknown');
-                                }
-                            })
+                            ->state(fn () => collect(MinecraftModrinth::listFolder($server, static::$modrinthProjectType->getFolder()))
+                                ->filter(fn ($file) => ($file['mime'] ?? null) === 'application/jar' || str($file['name'] ?? '')->lower()->endsWith('.jar'))
+                                ->count())
                             ->badge(),
                     ]),
                 $this->getTabsContentComponent(),

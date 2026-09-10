@@ -65,6 +65,8 @@ return [
         'update_failed_body' => 'An error occurred during the update. Please try again or contact support if the issue persists.',
         'uninstall_success' => 'Uninstall completed',
         'uninstall_success_body' => 'Successfully uninstalled :name',
+        'uninstall_partial' => 'Uninstall incomplete',
+        'uninstall_partial_body' => 'The file for :name was deleted, but it could not be removed from the installed list. It may still appear as installed.',
         'uninstall_failed' => 'Uninstall failed',
         'uninstall_failed_body' => 'An error occurred during uninstallation. Please try again or contact support if the issue persists.',
     ],

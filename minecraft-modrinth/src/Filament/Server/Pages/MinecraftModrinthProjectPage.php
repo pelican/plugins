@@ -707,9 +707,18 @@ abstract class MinecraftModrinthProjectPage extends Page implements HasTable
                             ->badge(),
                         TextEntry::make('installed')
                             ->label(fn () => trans('minecraft-modrinth::strings.page.installed', ['type' => static::$modrinthProjectType?->getLabel() ?? 'Modrinth']))
-                            ->state(fn () => collect(MinecraftModrinth::listFolder($server, static::$modrinthProjectType->getFolder()))
-                                ->filter(fn ($file) => ($file['mime'] ?? null) === 'application/jar' || str($file['name'] ?? '')->lower()->endsWith('.jar'))
-                                ->count())
+                            ->state(function () use ($server) {
+                                try {
+                                    return collect(MinecraftModrinth::listFolder($server, static::$modrinthProjectType->getFolder()))
+                                        ->filter(fn ($file) => ($file['mime'] ?? null) === 'application/jar' || str($file['name'] ?? '')->lower()->endsWith('.jar'))
+                                        ->count();
+                                } catch (Exception $exception) {
+                                    report($exception);
+
+                                    // Don't pass off an unreachable daemon as an empty folder.
+                                    return trans('minecraft-modrinth::strings.page.unknown');
+                                }
+                            })
                             ->badge(),
                     ]),
                 $this->getTabsContentComponent(),

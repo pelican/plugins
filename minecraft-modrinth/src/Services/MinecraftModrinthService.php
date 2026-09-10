@@ -8,6 +8,7 @@ use Boy132\MinecraftModrinth\Enums\ModrinthProjectType;
 use Exception;
 use Illuminate\Contracts\Filesystem\FileNotFoundException;
 use Illuminate\Http\Client\Pool;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -16,6 +17,11 @@ class MinecraftModrinthService
 {
     // Seconds to wait for the daemon while it downloads a file for us.
     protected const DOWNLOAD_TIMEOUT = 120;
+
+    // Version list cache TTL (minutes); kept short so a transient empty Modrinth response can't hide updates for long.
+    protected const VERSIONS_CACHE_MINUTES = 30;
+
+    protected const EMPTY_VERSIONS_CACHE_MINUTES = 5;
 
     public function getMinecraftVersion(Server $server): ?string
     {
@@ -264,6 +270,12 @@ class MinecraftModrinthService
         ];
     }
 
+    /** @param  array<int, mixed>  $versions */
+    protected function cacheVersions(string $key, array $versions): void
+    {
+        cache()->put($key, $versions, now()->addMinutes(empty($versions) ? self::EMPTY_VERSIONS_CACHE_MINUTES : self::VERSIONS_CACHE_MINUTES));
+    }
+
     /**
      * @param  array<int, mixed>  $versions
      * @return array<int, mixed>
@@ -310,7 +322,7 @@ class MinecraftModrinthService
 
         $versions = is_array($versions) ? $this->sortVersions($versions) : [];
 
-        cache()->put($key, $versions, now()->addMinutes(30));
+        $this->cacheVersions($key, $versions);
 
         return $versions;
     }
@@ -379,7 +391,7 @@ class MinecraftModrinthService
                 $versions = $response->json();
                 $versions = is_array($versions) ? $this->sortVersions($versions) : [];
 
-                cache()->put($this->getVersionsCacheKey($projectId, $minecraftVersion, $minecraftLoader), $versions, now()->addMinutes(30));
+                $this->cacheVersions($this->getVersionsCacheKey($projectId, $minecraftVersion, $minecraftLoader), $versions);
 
                 $results[$projectId] = $versions;
 
@@ -563,6 +575,10 @@ class MinecraftModrinthService
      */
     public function downloadFile(Server $server, string $url, string $folder, string $filename): void
     {
+        // An update often reuses the name of the file it replaces. If the name is already taken,
+        // finding it there afterwards says nothing about whether our download replaced it.
+        $nameWasTaken = $this->fileExists($server, $folder, $filename);
+
         try {
             app(DaemonFileRepository::class)
                 ->setServer($server)
@@ -577,8 +593,19 @@ class MinecraftModrinthService
                     'foreground' => true,
                 ]);
         } catch (Exception $exception) {
-            // A slow download can outlive our request while still finishing on the node.
-            if (!$this->fileExists($server, $folder, $filename)) {
+            // A slow download can outlive our request while still finishing on the node, but a
+            // file appearing under a name that was free before is the only proof of that we get.
+            if ($nameWasTaken) {
+                throw $exception;
+            }
+
+            try {
+                $landed = $this->fileExists($server, $folder, $filename);
+            } catch (Exception) {
+                throw $exception;
+            }
+
+            if (!$landed) {
                 throw $exception;
             }
 
@@ -612,18 +639,26 @@ class MinecraftModrinthService
         return false;
     }
 
-    /** @return array<string, mixed> */
+    /**
+     * @return array<string, mixed>
+     *
+     * @throws Exception
+     */
     public function listFolder(Server $server, string $folder): array
     {
         try {
             $files = app(DaemonFileRepository::class)->setServer($server)->getDirectory($folder);
-        } catch (Exception) {
-            // The folder may simply not exist yet.
-            return [];
+        } catch (RequestException $exception) {
+            if ($exception->response->status() === 404) {
+                // The folder simply doesn't exist yet.
+                return [];
+            }
+
+            throw $exception;
         }
 
         if (isset($files['error'])) {
-            return [];
+            throw new Exception("Daemon returned an error while listing $folder: ".(is_string($files['error']) ? $files['error'] : 'unknown error'));
         }
 
         return $files;

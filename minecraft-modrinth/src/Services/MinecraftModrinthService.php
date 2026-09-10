@@ -6,11 +6,23 @@ use App\Models\Server;
 use App\Repositories\Daemon\DaemonFileRepository;
 use Boy132\MinecraftModrinth\Enums\ModrinthProjectType;
 use Exception;
+use Illuminate\Contracts\Filesystem\FileNotFoundException;
+use Illuminate\Http\Client\Pool;
+use Illuminate\Http\Client\RequestException;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
 class MinecraftModrinthService
 {
+    // Seconds to wait for the daemon while it downloads a file for us.
+    protected const DOWNLOAD_TIMEOUT = 120;
+
+    // Version list cache TTL (minutes); kept short so a transient empty Modrinth response can't hide updates for long.
+    protected const VERSIONS_CACHE_MINUTES = 30;
+
+    protected const EMPTY_VERSIONS_CACHE_MINUTES = 5;
+
     public function getMinecraftVersion(Server $server): ?string
     {
         $version = $server->variables()->where(fn ($builder) => $builder->where('env_variable', 'MINECRAFT_VERSION')->orWhere('env_variable', 'MC_VERSION'))->first()?->server_value;
@@ -119,26 +131,34 @@ class MinecraftModrinthService
         if ($search) {
             $data['query'] = $search;
 
-            $key .= ":$search";
+            $key .= ':'.md5($search);
         }
 
-        return cache()->remember($key, now()->addMinutes(30), function () use ($data) {
-            try {
-                return Http::asJson()
-                    ->timeout(5)
-                    ->connectTimeout(5)
-                    ->throw()
-                    ->get('https://api.modrinth.com/v2/search', $data)
-                    ->json();
-            } catch (Exception $exception) {
-                report($exception);
+        $cached = cache()->get($key);
+        if (is_array($cached)) {
+            return $cached;
+        }
 
-                return [
-                    'hits' => [],
-                    'total_hits' => 0,
-                ];
-            }
-        });
+        try {
+            $response = Http::asJson()
+                ->timeout(5)
+                ->connectTimeout(5)
+                ->throw()
+                ->get('https://api.modrinth.com/v2/search', $data)
+                ->json();
+        } catch (Exception $exception) {
+            report($exception);
+
+            // not caching on purpose since caching a failure would keep the page empty for 30 minutes
+            return [
+                'hits' => [],
+                'total_hits' => 0,
+            ];
+        }
+
+        cache()->put($key, $response, now()->addMinutes(30));
+
+        return $response;
     }
 
     /**
@@ -151,7 +171,14 @@ class MinecraftModrinthService
             return [];
         }
 
-        $projectIds = collect($installedMods)->pluck('project_id')->unique()->values()->all();
+        $installedModsById = [];
+        foreach ($installedMods as $mod) {
+            if (!isset($installedModsById[$mod['project_id']])) {
+                $installedModsById[$mod['project_id']] = $mod;
+            }
+        }
+
+        $projectIds = array_keys($installedModsById);
 
         $perPage = 20;
         $offset = ($page - 1) * $perPage;
@@ -162,9 +189,13 @@ class MinecraftModrinthService
         }
 
         $idsParam = json_encode($pageIds, JSON_THROW_ON_ERROR);
-        $modrinthProjects = cache()->remember('modrinth_bulk:' . md5($idsParam), now()->addMinutes(30), function () use ($idsParam) {
+        $cacheKey = 'modrinth_bulk:'.md5($idsParam);
+
+        $modrinthProjects = cache()->get($cacheKey);
+
+        if (!is_array($modrinthProjects)) {
             try {
-                return Http::asJson()
+                $modrinthProjects = Http::asJson()
                     ->timeout(10)
                     ->connectTimeout(5)
                     ->throw()
@@ -172,15 +203,17 @@ class MinecraftModrinthService
                         'ids' => $idsParam,
                     ])
                     ->json();
+
+                if (!is_array($modrinthProjects)) {
+                    $modrinthProjects = [];
+                }
+
+                cache()->put($cacheKey, $modrinthProjects, now()->addMinutes(30));
             } catch (Exception $exception) {
                 report($exception);
 
-                return [];
+                $modrinthProjects = [];
             }
-        });
-
-        if (!is_array($modrinthProjects)) {
-            $modrinthProjects = [];
         }
 
         $modrinthMap = [];
@@ -190,20 +223,9 @@ class MinecraftModrinthService
             }
         }
 
-        $installedModsById = [];
-        foreach ($installedMods as $mod) {
-            if (!isset($installedModsById[$mod['project_id']])) {
-                $installedModsById[$mod['project_id']] = $mod;
-            }
-        }
-
         $results = [];
         foreach ($pageIds as $projectId) {
-            $installedMod = $installedModsById[$projectId] ?? null;
-
-            if (!$installedMod) {
-                continue;
-            }
+            $installedMod = $installedModsById[$projectId];
 
             if (isset($modrinthMap[$projectId])) {
                 $project = $modrinthMap[$projectId];
@@ -234,6 +256,37 @@ class MinecraftModrinthService
         return $results;
     }
 
+    protected function getVersionsCacheKey(string $projectId, ?string $minecraftVersion, string $minecraftLoader): string
+    {
+        return "modrinth_versions:$projectId:$minecraftVersion:$minecraftLoader";
+    }
+
+    /** @return array{game_versions: string, loaders: string} */
+    protected function getVersionsQuery(?string $minecraftVersion, string $minecraftLoader): array
+    {
+        return [
+            'game_versions' => "[\"$minecraftVersion\"]",
+            'loaders' => "[\"$minecraftLoader\"]",
+        ];
+    }
+
+    /** @param  array<int, mixed>  $versions */
+    protected function cacheVersions(string $key, array $versions): void
+    {
+        cache()->put($key, $versions, now()->addMinutes(empty($versions) ? self::EMPTY_VERSIONS_CACHE_MINUTES : self::VERSIONS_CACHE_MINUTES));
+    }
+
+    /**
+     * @param  array<int, mixed>  $versions
+     * @return array<int, mixed>
+     */
+    protected function sortVersions(array $versions): array
+    {
+        usort($versions, fn ($a, $b) => strcmp($b['date_published'] ?? '', $a['date_published'] ?? ''));
+
+        return $versions;
+    }
+
     /** @return array<array{name: string, version_number: string, changelog: ?string, dependencies: array<mixed>, game_version: string[], version_type: string, loaders: string[], featured: bool, status: string, requested_status: ?string, id: string, project_id: string, author_id: string, date_published: string, downloads: int, changelog_url: ?string, files: array<mixed>}> */
     public function getProjectVersions(string $projectId, Server $server): array
     {
@@ -246,33 +299,113 @@ class MinecraftModrinthService
         $minecraftVersion = $this->getMinecraftVersion($server);
         $minecraftLoader = $minecraftLoader['name'];
 
-        $data = [
-            'game_versions' => "[\"$minecraftVersion\"]",
-            'loaders' => "[\"$minecraftLoader\"]",
-        ];
+        $key = $this->getVersionsCacheKey($projectId, $minecraftVersion, $minecraftLoader);
 
-        return cache()->remember("modrinth_versions:$projectId:$minecraftVersion:$minecraftLoader", now()->addMinutes(30), function () use ($projectId, $data) {
-            try {
-                $versions = Http::asJson()
-                    ->timeout(5)
-                    ->connectTimeout(5)
-                    ->throw()
-                    ->get("https://api.modrinth.com/v2/project/$projectId/version", $data)
-                    ->json();
+        $cached = cache()->get($key);
+        if (is_array($cached)) {
+            return $cached;
+        }
 
-                if (is_array($versions) && !empty($versions)) {
-                    usort($versions, function ($a, $b) {
-                        return strcmp($b['date_published'] ?? '', $a['date_published'] ?? '');
-                    });
-                }
+        try {
+            $versions = Http::asJson()
+                ->timeout(5)
+                ->connectTimeout(5)
+                ->throw()
+                ->get("https://api.modrinth.com/v2/project/$projectId/version", $this->getVersionsQuery($minecraftVersion, $minecraftLoader))
+                ->json();
+        } catch (Exception $exception) {
+            report($exception);
 
-                return $versions;
-            } catch (Exception $exception) {
-                report($exception);
+            // not cached on purpose since an empty list would hide the update action for 30 minutes.
+            return [];
+        }
 
-                return [];
+        $versions = is_array($versions) ? $this->sortVersions($versions) : [];
+
+        $this->cacheVersions($key, $versions);
+
+        return $versions;
+    }
+
+    /**
+     * fetch compatible versions of several projects at once, a full installed
+     * tab used to cost up to 20 sequential Modrinth round trips whilst this fetches in bulk.
+     *
+     * @param  array<int, string>  $projectIds
+     * @return array<string, array<int, mixed>>
+     */
+    public function getProjectVersionsBulk(array $projectIds, Server $server): array
+    {
+        $projectIds = array_values(array_unique(array_filter($projectIds)));
+
+        if (empty($projectIds)) {
+            return [];
+        }
+
+        $minecraftLoader = $this->getLoaderFromServer($server);
+
+        if (!$minecraftLoader) {
+            return array_fill_keys($projectIds, []);
+        }
+
+        $minecraftVersion = $this->getMinecraftVersion($server);
+        $minecraftLoader = $minecraftLoader['name'];
+        $query = $this->getVersionsQuery($minecraftVersion, $minecraftLoader);
+
+        $results = [];
+        $missing = [];
+
+        foreach ($projectIds as $projectId) {
+            $cached = cache()->get($this->getVersionsCacheKey($projectId, $minecraftVersion, $minecraftLoader));
+
+            if (is_array($cached)) {
+                $results[$projectId] = $cached;
+            } else {
+                $missing[] = $projectId;
             }
-        });
+        }
+
+        if (empty($missing)) {
+            return $results;
+        }
+
+        try {
+            $responses = Http::pool(fn (Pool $pool) => array_map(
+                fn (string $projectId) => $pool->as($projectId)
+                    ->asJson()
+                    ->timeout(10)
+                    ->connectTimeout(5)
+                    ->get("https://api.modrinth.com/v2/project/$projectId/version", $query),
+                $missing
+            ));
+        } catch (Exception $exception) {
+            report($exception);
+
+            $responses = [];
+        }
+
+        foreach ($missing as $projectId) {
+            $response = $responses[$projectId] ?? null;
+
+            if ($response instanceof Response && $response->successful()) {
+                $versions = $response->json();
+                $versions = is_array($versions) ? $this->sortVersions($versions) : [];
+
+                $this->cacheVersions($this->getVersionsCacheKey($projectId, $minecraftVersion, $minecraftLoader), $versions);
+
+                $results[$projectId] = $versions;
+
+                continue;
+            }
+
+            if ($response instanceof Exception) {
+                report($response);
+            }
+
+            $results[$projectId] = [];
+        }
+
+        return $results;
     }
 
     /**
@@ -292,41 +425,47 @@ class MinecraftModrinthService
             $metadataPath = $this->getMetadataFilePath($modrinthProjectType);
             $content = $fileRepository->setServer($server)->getContent($metadataPath);
             $metadata = json_decode($content, true);
-
-            if (!is_array($metadata) || !isset($metadata['installed_mods']) || !is_array($metadata['installed_mods'])) {
-                return [];
-            }
-
-            $validInstalledMods = [];
-            $requiredKeys = [
-                'project_id',
-                'project_slug',
-                'project_title',
-                'version_id',
-                'version_number',
-                'filename',
-                'installed_at',
-            ];
-
-            $requiredKeysFlipped = array_flip($requiredKeys);
-
-            foreach ($metadata['installed_mods'] as $entry) {
-                if (!is_array($entry)) {
-                    continue;
-                }
-
-                $missingKeys = array_diff_key($requiredKeysFlipped, $entry);
-                if (empty($missingKeys)) {
-                    $validInstalledMods[] = $entry;
-                }
-            }
-
-            return $validInstalledMods;
+        } catch (FileNotFoundException) {
+            return [];
         } catch (Exception $exception) {
             report($exception);
 
             return [];
         }
+
+        if (!is_array($metadata) || !isset($metadata['installed_mods']) || !is_array($metadata['installed_mods'])) {
+            return [];
+        }
+
+        $requiredKeysFlipped = array_flip([
+            'project_id',
+            'project_slug',
+            'project_title',
+            'version_id',
+            'version_number',
+            'filename',
+            'installed_at',
+        ]);
+
+        $validInstalledMods = [];
+
+        foreach ($metadata['installed_mods'] as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            if (!empty(array_diff_key($requiredKeysFlipped, $entry))) {
+                continue;
+            }
+
+            if (isset($validInstalledMods[$entry['project_id']])) {
+                continue;
+            }
+
+            $validInstalledMods[$entry['project_id']] = $entry;
+        }
+
+        return array_values($validInstalledMods);
     }
 
     public function saveModMetadata(
@@ -344,14 +483,16 @@ class MinecraftModrinthService
             return Cache::lock("modrinth_metadata:{$server->id}", 10)->block(5, function () use ($server, $modrinthProjectType, $projectId, $projectSlug, $projectTitle, $versionId, $versionNumber, $filename, $author) {
                 $fileRepository = app(DaemonFileRepository::class);
 
-                $metadata = [
-                    'installed_mods' => $this->getInstalledModsMetadata($server, $modrinthProjectType),
-                ];
+                $installedMods = $this->getInstalledModsMetadata($server, $modrinthProjectType);
 
-                $metadata['installed_mods'] = collect($metadata['installed_mods'])
-                    ->filter(fn ($mod) => $mod['project_id'] !== $projectId)
-                    ->values()
-                    ->toArray();
+                $existingIndex = null;
+                foreach ($installedMods as $index => $mod) {
+                    if ($mod['project_id'] === $projectId) {
+                        $existingIndex = $index;
+
+                        break;
+                    }
+                }
 
                 $modEntry = [
                     'project_id' => $projectId,
@@ -360,19 +501,31 @@ class MinecraftModrinthService
                     'version_id' => $versionId,
                     'version_number' => $versionNumber,
                     'filename' => $filename,
-                    'installed_at' => now()->toIso8601String(),
+                    'installed_at' => $existingIndex !== null
+                        ? $installedMods[$existingIndex]['installed_at']
+                        : now()->toIso8601String(),
                 ];
+
+                if ($existingIndex !== null) {
+                    $modEntry['updated_at'] = now()->toIso8601String();
+                }
 
                 if ($author !== null) {
                     $modEntry['author'] = $author;
                 }
 
-                $metadata['installed_mods'][] = $modEntry;
+                if ($existingIndex !== null) {
+                    // Replace in place. Removing and re-appending pushed the entry to the end of the
+                    // list, which moved the row to the bottom of the installed tab on every update.
+                    $installedMods[$existingIndex] = $modEntry;
+                } else {
+                    $installedMods[] = $modEntry;
+                }
 
                 $metadataPath = $this->getMetadataFilePath($modrinthProjectType);
                 $response = $fileRepository->setServer($server)->putContent(
                     $metadataPath,
-                    json_encode($metadata, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)
+                    json_encode(['installed_mods' => array_values($installedMods)], JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)
                 );
 
                 return !$response->failed();
@@ -390,11 +543,7 @@ class MinecraftModrinthService
             return Cache::lock("modrinth_metadata:{$server->id}", 10)->block(5, function () use ($server, $modrinthProjectType, $projectId) {
                 $fileRepository = app(DaemonFileRepository::class);
 
-                $metadata = [
-                    'installed_mods' => $this->getInstalledModsMetadata($server, $modrinthProjectType),
-                ];
-
-                $metadata['installed_mods'] = collect($metadata['installed_mods'])
+                $installedMods = collect($this->getInstalledModsMetadata($server, $modrinthProjectType))
                     ->filter(fn ($mod) => $mod['project_id'] !== $projectId)
                     ->values()
                     ->toArray();
@@ -402,7 +551,7 @@ class MinecraftModrinthService
                 $metadataPath = $this->getMetadataFilePath($modrinthProjectType);
                 $response = $fileRepository->setServer($server)->putContent(
                     $metadataPath,
-                    json_encode($metadata, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)
+                    json_encode(['installed_mods' => $installedMods], JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)
                 );
 
                 return !$response->failed();
@@ -412,6 +561,107 @@ class MinecraftModrinthService
 
             return false;
         }
+    }
+
+    /**
+     * Ask the daemon to download a file and wait until it is actually on disk.
+     *
+     * Without `foreground` the daemon downloads in the background, so the panel gets a success
+     * response before the file exists and never hears about a failed download. The explicit file
+     * name matters too: otherwise the daemon derives it from the URL, which can differ from the
+     * name Modrinth reports and would leave the metadata pointing at a file that isn't there.
+     *
+     * @throws Exception
+     */
+    public function downloadFile(Server $server, string $url, string $folder, string $filename): void
+    {
+        // An update often reuses the name of the file it replaces. If the name is already taken,
+        // finding it there afterwards says nothing about whether our download replaced it.
+        $nameWasTaken = $this->fileExists($server, $folder, $filename);
+
+        try {
+            app(DaemonFileRepository::class)
+                ->setServer($server)
+                ->getHttpClient()
+                // The daemon holds the request open for the whole download, which easily outlives
+                // the timeout used for the small file operations everything else here does.
+                ->timeout(max((int) config('panel.guzzle.timeout'), self::DOWNLOAD_TIMEOUT))
+                ->post("/api/servers/{$server->uuid}/files/pull", [
+                    'url' => $url,
+                    'root' => $folder,
+                    'file_name' => $filename,
+                    'foreground' => true,
+                ]);
+        } catch (Exception $exception) {
+            // A slow download can outlive our request while still finishing on the node, but a
+            // file appearing under a name that was free before is the only proof of that we get.
+            if ($nameWasTaken) {
+                throw $exception;
+            }
+
+            try {
+                $landed = $this->fileExists($server, $folder, $filename);
+            } catch (Exception) {
+                throw $exception;
+            }
+
+            if (!$landed) {
+                throw $exception;
+            }
+
+            return;
+        }
+
+        if (!$this->fileExists($server, $folder, $filename)) {
+            throw new Exception("Daemon reported success but $folder/$filename is missing after downloading $url");
+        }
+    }
+
+    /**
+     * @throws Exception
+     */
+    public function deleteFile(Server $server, string $folder, string $filename): void
+    {
+        app(DaemonFileRepository::class)
+            ->setServer($server)
+            ->deleteFiles('/', [join_paths($folder, $filename)])
+            ->throw();
+    }
+
+    public function fileExists(Server $server, string $folder, string $filename): bool
+    {
+        foreach ($this->listFolder($server, $folder) as $file) {
+            if (is_array($file) && ($file['name'] ?? null) === $filename) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @return array<string, mixed>
+     *
+     * @throws Exception
+     */
+    public function listFolder(Server $server, string $folder): array
+    {
+        try {
+            $files = app(DaemonFileRepository::class)->setServer($server)->getDirectory($folder);
+        } catch (RequestException $exception) {
+            if ($exception->response->status() === 404) {
+                // The folder simply doesn't exist yet.
+                return [];
+            }
+
+            throw $exception;
+        }
+
+        if (isset($files['error'])) {
+            throw new Exception("Daemon returned an error while listing $folder: ".(is_string($files['error']) ? $files['error'] : 'unknown error'));
+        }
+
+        return $files;
     }
 
     /** @return array{project_id: string, project_slug: string, project_title: string, version_id: string, version_number: string, filename: string, installed_at: string, author?: string}|null */

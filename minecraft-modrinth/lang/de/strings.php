@@ -65,6 +65,8 @@ return [
         'update_failed_body' => 'Bei der Aktualisierung ist ein Fehler aufgetreten. Bitte versuche es erneut oder wende dich an den Support, wenn das Problem weiterhin besteht.',
         'uninstall_success' => 'Deinstallation abgeschlossen',
         'uninstall_success_body' => ':name erfolgreich deinstalliert',
+        'uninstall_partial' => 'Deinstallation unvollständig',
+        'uninstall_partial_body' => 'Die Datei von :name wurde gelöscht, konnte aber nicht aus der Liste der installierten Mods/Plugins entfernt werden. Sie wird eventuell weiterhin als installiert angezeigt.',
         'uninstall_failed' => 'Deinstallation fehlgeschlagen',
         'uninstall_failed_body' => 'Bei der Deinstallation ist ein Fehler aufgetreten. Bitte versuche es erneut oder wende dich an den Support, wenn das Problem weiterhin besteht.',
     ],

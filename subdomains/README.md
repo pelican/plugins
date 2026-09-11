@@ -15,11 +15,20 @@ Each domain is composed of a name and an optional prefix. The name must be a val
 
 For example: when creating a subdomain `server1` on a domain with name `example.com` and prefix `abc`, the created record will be `server1.abc.example.com`.
 
+#### Domain restrictions
+
+Domains can be configured to only permit subdomain creation under specific conditions:
+
+- For each domain you can select which DNS Record types can be created on it
+- For each domain you can select the nodes on which it is enabled. Servers on unselected nodes will not have the option to use this domain.
+
+Leaving these fields empty will keep all record types / nodes enabled.
+
 ## Configuration
 
 Subdomains support several different DNS Record types. Each type has different requirements before it can be created.
 
-If a DNS Record type is not available, check whether all of it's requirements have been met.
+If a DNS Record type is not available, check whether it is enabled on the domain and whether all of it's requirements have been met.
 
 ### Server primary allocations
 

@@ -2,20 +2,26 @@
 
 namespace Boy132\Subdomains\Filament\Admin\Resources\CloudflareDomains;
 
+use Boy132\Subdomains\Enums\RecordType;
 use Boy132\Subdomains\Filament\Admin\Resources\CloudflareDomains\Pages\ManageCloudflareDomains;
 use Boy132\Subdomains\Models\CloudflareDomain;
 use Exception;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
+use Filament\Actions\EditAction;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Validation\Rules\Unique;
 
 class CloudflareDomainResource extends Resource
 {
@@ -61,6 +67,12 @@ class CloudflareDomainResource extends Resource
                 TextColumn::make('subdomains_count')
                     ->label(trans_choice('subdomains::strings.subdomain', 2))
                     ->counts('subdomains'),
+                TextColumn::make('allowed_record_types')
+                    ->label(trans('subdomains::strings.allowed_record_types'))
+                    ->badge(),
+                TextColumn::make('nodes.name')
+                    ->label(trans('subdomains::strings.allowed_nodes'))
+                    ->badge(),
                 IconColumn::make('is_synced')
                     ->label(trans('subdomains::strings.is_synced'))
                     ->state(fn (CloudflareDomain $domain) => !is_null($domain->cloudflare_id))
@@ -70,6 +82,7 @@ class CloudflareDomainResource extends Resource
                     ->tooltip(fn (CloudflareDomain $domain) => $domain->cloudflare_id),
             ])
             ->recordActions([
+                EditAction::make('edit'),
                 Action::make('sync')
                     ->tooltip(trans('subdomains::strings.sync'))
                     ->icon('tabler-refresh')
@@ -123,9 +136,27 @@ class CloudflareDomainResource extends Resource
                 TextInput::make('name')
                     ->label(trans('subdomains::strings.name'))
                     ->required()
-                    ->unique(),
+                    ->unique(ignoreRecord: true, modifyRuleUsing: fn (Unique $rule, Get $get) => $rule
+                        ->where('name', $get('name'))
+                        ->where('prefix', is_null($get('prefix')) ? '' : $get('prefix')))
+                    ->disabledOn('edit'),
                 TextInput::make('prefix')
-                    ->label(trans('subdomains::strings.prefix')),
+                    ->label(trans('subdomains::strings.prefix'))
+                    ->unique(ignoreRecord: true, modifyRuleUsing: fn (Unique $rule, Get $get) => $rule
+                        ->where('name', $get('name'))
+                        ->where('prefix', is_null($get('prefix')) ? '' : $get('prefix')))
+                    ->disabledOn('edit')
+                    ->dehydrateStateUsing(fn ($state) => is_null($state) ? '' : $state),
+                Select::make('allowed_record_types')
+                    ->label(trans('subdomains::strings.allowed_record_types'))
+                    ->options(RecordType::class)
+                    ->multiple(),
+                Select::make('allowed_nodes')
+                    ->label(trans('subdomains::strings.allowed_nodes'))
+                    ->multiple()
+                    ->searchable()
+                    ->preload()
+                    ->relationship('nodes', 'name', fn (Builder $query) => $query->whereIn('nodes.id', user()?->accessibleNodes()->pluck('id'))),
             ]);
     }
 

@@ -5,7 +5,6 @@ namespace Boy132\Subdomains\Filament\Server\Resources\Subdomains;
 use App\Models\Server;
 use App\Traits\Filament\BlockAccessInConflict;
 use App\Traits\Filament\HasLimitBadge;
-use Boy132\Subdomains\Enums\RecordType;
 use Boy132\Subdomains\Filament\Server\Resources\Subdomains\Pages\ListSubdomains;
 use Boy132\Subdomains\Models\CloudflareDomain;
 use Boy132\Subdomains\Models\Subdomain;
@@ -21,6 +20,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Filament\Support\Enums\IconSize;
 use Filament\Support\Exceptions\Halt;
@@ -43,7 +43,7 @@ class SubdomainResource extends Resource
         /** @var Server $server */
         $server = Filament::getTenant();
 
-        return parent::canAccess() && CloudflareDomain::count() > 0 && count(RecordType::availableRecordTypes($server)) > 0;
+        return parent::canAccess() && count(CloudflareDomain::availableDomains($server)) > 0;
     }
 
     public static function getNavigationLabel(): string
@@ -155,23 +155,25 @@ class SubdomainResource extends Resource
                 Select::make('domain_id')
                     ->label(trans_choice('subdomains::strings.domain', 1))
                     ->disabledOn('edit')
-                    ->hidden(fn () => CloudflareDomain::count() <= 1)
-                    ->dehydratedWhenHidden()
+                    ->disabled(fn () => CloudflareDomain::availableDomains($server)->count() <= 1)
+                    ->saved()
                     ->required()
                     ->selectablePlaceholder(false)
-                    ->default(fn () => CloudflareDomain::first()?->id)
-                    ->relationship('domain', 'name')
+                    ->options(CloudflareDomain::availableDomains($server)->mapWithKeys(fn ($domain) => [$domain->id => $domain->nameWithPrefix()]))
+                    ->default(CloudflareDomain::availableDomains($server)->first()->id)
                     ->preload()
                     ->searchable()
+                    ->afterStateUpdated(fn (Get $get, Set $set) => $set('record_type', CloudflareDomain::find($get('domain_id'))?->availableRecordTypes($server)->first()))
                     ->live(),
                 Select::make('record_type')
                     ->label(trans('subdomains::strings.record_type'))
                     ->disabledOn('edit')
-                    ->disabled(fn () => count(RecordType::availableRecordTypes($server)) <= 1)
+                    ->disabled(fn (Get $get) => CloudflareDomain::find($get('domain_id'))?->availableRecordTypes($server)->count() <= 1)
+                    ->saved()
                     ->required()
                     ->selectablePlaceholder(false)
-                    ->options(RecordType::availableRecordTypes($server))
-                    ->default(array_first(RecordType::availableRecordTypes($server))),
+                    ->options(fn (Get $get) => CloudflareDomain::find($get('domain_id'))?->availableRecordTypes($server)->pluck('name', 'value'))
+                    ->default(fn (Get $get) => CloudflareDomain::find($get('domain_id'))?->availableRecordTypes($server)->first()),
             ]);
     }
 

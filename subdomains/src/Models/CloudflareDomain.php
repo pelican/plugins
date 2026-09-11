@@ -2,16 +2,25 @@
 
 namespace Boy132\Subdomains\Models;
 
+use App\Models\Node;
+use App\Models\Server;
+use Boy132\Subdomains\Enums\RecordType;
+use Boy132\Subdomains\Enums\SRVServiceType;
 use Exception;
+use Illuminate\Database\Eloquent\Casts\AsEnumCollection;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
 
 /**
  * @property int $id
  * @property string $name
- * @property ?string $prefix
+ * @property string $prefix
  * @property ?string $cloudflare_id
+ * @property Collection|Node[] $nodes
+ * @property Collection<RecordType> $allowed_record_types
  */
 class CloudflareDomain extends Model
 {
@@ -19,6 +28,7 @@ class CloudflareDomain extends Model
         'name',
         'prefix',
         'cloudflare_id',
+        'allowed_record_types',
     ];
 
     protected static function boot(): void
@@ -28,6 +38,17 @@ class CloudflareDomain extends Model
         static::created(function (self $model) {
             $model->fetchCloudflareId();
         });
+
+        static::saving(function (self $model): void {
+            $model->allowed_record_types = $model->allowed_record_types->sort();
+        });
+    }
+
+    protected function casts(): array
+    {
+        return [
+            'allowed_record_types' => AsEnumCollection::of(RecordType::class),
+        ];
     }
 
     public function subdomains(): HasMany
@@ -35,14 +56,19 @@ class CloudflareDomain extends Model
         return $this->hasMany(Subdomain::class, 'domain_id');
     }
 
+    public function nodes(): BelongsToMany
+    {
+        return $this->belongsToMany(Node::class);
+    }
+
     public function nameWithPrefix(): string
     {
-        return is_null($this->prefix) ? $this->name : "$this->prefix.$this->name";
+        return $this->prefix == '' ? $this->name : "$this->prefix.$this->name";
     }
 
     public function prependPrefix(string $subdomain): string
     {
-        return is_null($this->prefix) ? $subdomain : "$subdomain.$this->prefix";
+        return $this->prefix == '' ? $subdomain : "$subdomain.$this->prefix";
     }
 
     /** @throws Exception */
@@ -68,5 +94,58 @@ class CloudflareDomain extends Model
                 throw new Exception($response['errors'][0]['message']);
             }
         }
+    }
+
+    /**
+     * @return Collection<string>
+     */
+    public function availableRecordTypes(Server $server): Collection
+    {
+        $allocation = $server->allocation;
+        $subdomainTarget = $server->node->subdomain_target; // @phpstan-ignore property.notFound
+        $allowedRecordTypes = $this->allowed_record_types;
+        $allowedRecordsFilterDisabled = $allowedRecordTypes->isEmpty();
+        $srvServiceType = SRVServiceType::fromServer($server);
+
+        $types = new Collection();
+
+        // Explicitly forbid ANY record creation when primary allocation is invalid
+        if ($allocation && in_array($allocation->ip, ['0.0.0.0', '::'])) {
+            return $types;
+        }
+
+        if (($allowedRecordsFilterDisabled || $allowedRecordTypes->contains(RecordType::A)) && $allocation && is_ipv4($allocation->ip)) {
+            $types->add(RecordType::A);
+        }
+
+        if (($allowedRecordsFilterDisabled || $allowedRecordTypes->contains(RecordType::AAAA)) && $allocation && is_ipv6($allocation->ip)) {
+            $types->add(RecordType::AAAA);
+        }
+
+        if (($allowedRecordsFilterDisabled || $allowedRecordTypes->contains(RecordType::CNAME)) && $subdomainTarget) {
+            $types->add(RecordType::CNAME);
+        }
+
+        if (($allowedRecordsFilterDisabled || $allowedRecordTypes->contains(RecordType::SRV)) && $allocation && $subdomainTarget && $srvServiceType) {
+            $types->add(RecordType::SRV);
+        }
+
+        return $types;
+    }
+
+    /**
+     * @return Collection<self>
+     */
+    public static function availableDomains(Server $server): Collection
+    {
+        // Fetch all domains with this allowed node, or with no allowed nodes
+        $viableDomains = CloudflareDomain::query()
+            ->whereHas('nodes', fn ($query) => $query->whereKey($server->node->id))
+            ->orWhereDoesntHave('nodes')
+            ->get();
+
+        $availableDomains = $viableDomains->filter(fn (self $item) => !$item->availableRecordTypes($server)->isEmpty());
+
+        return $availableDomains;
     }
 }

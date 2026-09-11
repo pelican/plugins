@@ -3,7 +3,6 @@
 namespace Boy132\Subdomains\Filament\Admin\Resources\Servers\RelationManagers;
 
 use App\Models\Server;
-use Boy132\Subdomains\Enums\RecordType;
 use Boy132\Subdomains\Models\CloudflareDomain;
 use Boy132\Subdomains\Models\Subdomain;
 use Boy132\Subdomains\Rules\NotOnBlacklist;
@@ -18,6 +17,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Filament\Support\Exceptions\Halt;
 use Filament\Tables\Columns\TextColumn;
@@ -84,8 +84,7 @@ class SubdomainRelationManager extends RelationManager
                             ->send();
                     }),
                 CreateAction::make()
-                    ->visible(fn () => CloudflareDomain::count() > 0)
-                    ->disabled(fn () => count(RecordType::availableRecordTypes($this->getOwnerRecord())) <= 0)
+                    ->visible(fn () => count(CloudflareDomain::availableDomains($this->getOwnerRecord())) > 0)
                     ->createAnother(false)
                     ->action(function (array $data, SubdomainService $service) {
                         try {
@@ -121,23 +120,26 @@ class SubdomainRelationManager extends RelationManager
                 Select::make('domain_id')
                     ->label(trans_choice('subdomains::strings.domain', 1))
                     ->disabledOn('edit')
-                    ->hidden(fn () => CloudflareDomain::count() <= 1)
-                    ->dehydratedWhenHidden()
+                    ->disabled(fn () => CloudflareDomain::availableDomains($this->getOwnerRecord())->count() <= 1)
+                    ->saved()
                     ->required()
                     ->selectablePlaceholder(false)
-                    ->default(fn () => CloudflareDomain::first()?->id)
                     ->relationship('domain', 'name')
+                    ->options(CloudflareDomain::availableDomains($this->getOwnerRecord())->mapWithKeys(fn ($domain) => [$domain->id => $domain->nameWithPrefix()]))
+                    ->default(CloudflareDomain::availableDomains($this->getOwnerRecord())->first()->id)
                     ->preload()
                     ->searchable()
+                    ->afterStateUpdated(fn (Get $get, Set $set) => $set('record_type', CloudflareDomain::find($get('domain_id'))?->availableRecordTypes($this->getOwnerRecord())->first()))
                     ->live(),
                 Select::make('record_type')
                     ->label(trans('subdomains::strings.record_type'))
                     ->disabledOn('edit')
-                    ->disabled(fn () => count(RecordType::availableRecordTypes($this->getOwnerRecord())) <= 1)
+                    ->disabled(fn (Get $get) => CloudflareDomain::find($get('domain_id'))?->availableRecordTypes($this->getOwnerRecord())->count() <= 1)
+                    ->saved()
                     ->required()
                     ->selectablePlaceholder(false)
-                    ->options(RecordType::availableRecordTypes($this->getOwnerRecord()))
-                    ->default(array_first(RecordType::availableRecordTypes($this->getOwnerRecord()))),
+                    ->options(fn (Get $get) => CloudflareDomain::find($get('domain_id'))?->availableRecordTypes($this->getOwnerRecord())->pluck('name', 'value'))
+                    ->default(fn (Get $get) => CloudflareDomain::find($get('domain_id'))?->availableRecordTypes($this->getOwnerRecord())->first()),
             ]);
     }
 }

@@ -3,6 +3,7 @@
 namespace Boy132\Subdomains\Models;
 
 use App\Models\Server;
+use Boy132\Subdomains\Enums\RecordType;
 use Boy132\Subdomains\Enums\SRVServiceType;
 use Exception;
 use Filament\Support\Contracts\HasLabel;
@@ -14,7 +15,7 @@ use Illuminate\Support\Facades\Http;
 /**
  * @property int $id
  * @property string $name
- * @property string $record_type
+ * @property RecordType $record_type
  * @property ?string $cloudflare_id
  * @property int $domain_id
  * @property CloudflareDomain $domain
@@ -38,6 +39,13 @@ class Subdomain extends Model implements HasLabel
         static::deleted(function (self $model) {
             $model->deleteOnCloudflare();
         });
+    }
+
+    protected function casts(): array
+    {
+        return [
+            'record_type' => RecordType::class,
+        ];
     }
 
     public function domain(): BelongsTo
@@ -64,9 +72,18 @@ class Subdomain extends Model implements HasLabel
         }
 
         $subdomainTarget = $this->server->node->subdomain_target; // @phpstan-ignore property.notFound
+        $node_id = $this->server->node->id;
+
+        if (!($this->domain->nodes->isEmpty() || $this->domain->nodes()->where('nodes.id', $node_id)->exists())) {
+            throw new Exception('Domain ' . $this->domain->nameWithPrefix() . ' is not permitted on node ' . $this->server->node->name);
+        }
+
+        if (!($this->domain->allowed_record_types->isEmpty() || $this->domain->allowed_record_types->contains($this->record_type))) {
+            throw new Exception('Record type ' . $this->record_type->value . ' is not permitted on domain ' . $this->domain->nameWithPrefix());
+        }
 
         switch ($this->record_type) {
-            case 'SRV':
+            case RecordType::SRV:
                 if (!$this->server->allocation) {
                     throw new Exception('Server has no allocation');
                 }
@@ -85,7 +102,7 @@ class Subdomain extends Model implements HasLabel
 
                 $payload = [
                     'name' => $searchName,
-                    'type' => $this->record_type,
+                    'type' => $this->record_type->value,
                     'comment' => 'Created by Pelican Subdomains plugin',
                     'data' => [
                         'port' => $this->server->allocation->port,
@@ -97,7 +114,7 @@ class Subdomain extends Model implements HasLabel
                 ];
                 break;
 
-            case 'CNAME':
+            case RecordType::CNAME:
                 if (!$subdomainTarget) {
                     throw new Exception('Node has no Subdomain target');
                 }
@@ -106,15 +123,15 @@ class Subdomain extends Model implements HasLabel
 
                 $payload = [
                     'name' => $searchName,
-                    'type' => $this->record_type,
+                    'type' => $this->record_type->value,
                     'comment' => 'Created by Pelican Subdomains plugin',
                     'content' => $subdomainTarget,
                     'proxied' => false,
                 ];
                 break;
 
-            case 'A':
-            case 'AAAA':
+            case RecordType::A:
+            case RecordType::AAAA:
                 if (!$this->server->allocation) {
                     throw new Exception('Server has no allocation');
                 }
@@ -123,7 +140,7 @@ class Subdomain extends Model implements HasLabel
 
                 $payload = [
                     'name' => $searchName,
-                    'type' => $this->record_type,
+                    'type' => $this->record_type->value,
                     'comment' => 'Created by Pelican Subdomains plugin',
                     'content' => $this->server->allocation->ip,
                     'proxied' => false,

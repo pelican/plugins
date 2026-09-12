@@ -2,7 +2,7 @@
     "id": "generic-oidc-providers",
     "name": "Generic OIDC Providers",
     "author": "Boy132",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "description": "Allows to create generic OIDC providers.",
     "category": "plugin",
     "url": "https://hub.pelican.dev/plugins/generic-oidc-providers",

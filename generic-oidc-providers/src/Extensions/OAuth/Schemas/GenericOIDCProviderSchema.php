@@ -4,13 +4,13 @@ namespace Boy132\GenericOIDCProviders\Extensions\OAuth\Schemas;
 
 use App\Extensions\OAuth\Schemas\OAuthSchema;
 use App\Models\User;
+use Boy132\GenericOIDCProviders\Extensions\OAuth\Providers\GenericOIDCProvider as Provider;
 use Boy132\GenericOIDCProviders\Filament\Admin\Resources\GenericOIDCProviders\Pages\EditGenericOIDCProvider;
 use Boy132\GenericOIDCProviders\Models\GenericOIDCProvider;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Wizard\Step;
 use Illuminate\Support\Str;
 use Laravel\Socialite\Contracts\User as OAuthUser;
-use SocialiteProviders\OIDC\Provider;
 
 final class GenericOIDCProviderSchema extends OAuthSchema
 {
@@ -34,6 +34,7 @@ final class GenericOIDCProviderSchema extends OAuthSchema
             'base_url' => $this->model->base_url,
             'verify_jwt' => $this->model->verify_jwt,
             'jwt_public_key' => $this->model->jwt_public_key,
+            'use_pkce' => $this->model->use_pkce,
         ];
     }
 

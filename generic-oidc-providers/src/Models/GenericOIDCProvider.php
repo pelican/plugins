@@ -16,6 +16,7 @@ use Illuminate\Database\Eloquent\Model;
  * @property string $client_secret
  * @property bool $verify_jwt
  * @property ?string $jwt_public_key
+ * @property ?bool $use_pkce
  */
 class GenericOIDCProvider extends Model
 {
@@ -35,6 +36,7 @@ class GenericOIDCProvider extends Model
         'client_secret',
         'verify_jwt',
         'jwt_public_key',
+        'use_pkce',
     ];
 
     protected function casts(): array
@@ -45,6 +47,7 @@ class GenericOIDCProvider extends Model
             'client_id' => 'encrypted',
             'client_secret' => 'encrypted',
             'verify_jwt' => 'bool',
+            'use_pkce' => 'bool',
         ];
     }
 }

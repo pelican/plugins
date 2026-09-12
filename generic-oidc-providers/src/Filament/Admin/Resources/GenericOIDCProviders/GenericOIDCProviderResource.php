@@ -117,7 +117,7 @@ class GenericOIDCProviderResource extends Resource
                     ->revealable()
                     ->autocomplete(false),
                 Group::make()
-                    ->columns(3)
+                    ->columns(4)
                     ->columnSpanFull()
                     ->schema([
                         Toggle::make('create_missing_users')
@@ -145,6 +145,13 @@ class GenericOIDCProviderResource extends Resource
                             ->offColor('danger')
                             ->stateCast(new BooleanStateCast(false))
                             ->live(),
+                        Select::make('use_pkce')
+                            ->label(trans('generic-oidc-providers::strings.use_pkce'))
+                            ->nullable()
+                            ->boolean(
+                                trans('admin/server.yes'),
+                                trans('admin/server.no'),
+                            ),
                     ]),
                 Textarea::make('jwt_public_key')
                     ->label(trans('generic-oidc-providers::strings.jwt_public_key'))
@@ -188,6 +195,13 @@ MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA...
                 IconColumn::make('link_missing_users')
                     ->label(trans('admin/setting.oauth.link_missing_users'))
                     ->boolean(),
+                IconColumn::make('use_pkce')
+                    ->label(trans('generic-oidc-providers::strings.use_pkce'))
+                    ->boolean()
+                    // null is "blank" and would render nothing, so show it as 'auto'
+                    ->default('auto')
+                    ->icon(fn ($state) => $state === 'auto' ? 'tabler-wand' : null)
+                    ->color(fn ($state) => $state === 'auto' ? 'gray' : null),
             ])
             ->recordActions([
                 EditAction::make(),

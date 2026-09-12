@@ -10,4 +10,5 @@ return [
     'redirect_url' => 'Weiterleitungs-URL',
     'verify_jwt' => 'JWT verifizieren?',
     'jwt_public_key' => 'JWT Public Key',
+    'use_pkce' => 'PKCE verwenden?',
 ];

@@ -10,4 +10,5 @@ return [
     'redirect_url' => 'Redirect URL',
     'verify_jwt' => 'Verify JWT?',
     'jwt_public_key' => 'JWT Public Key',
+    'use_pkce' => 'Use PKCE?',
 ];

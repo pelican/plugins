@@ -69,10 +69,12 @@ class CloudflareDomainResource extends Resource
                     ->counts('subdomains'),
                 TextColumn::make('allowed_record_types')
                     ->label(trans('subdomains::strings.allowed_record_types'))
-                    ->badge(),
+                    ->badge()
+                    ->default(trans('subdomains::strings.all_record_types')),
                 TextColumn::make('nodes.name')
                     ->label(trans('subdomains::strings.allowed_nodes'))
-                    ->badge(),
+                    ->badge()
+                    ->default(trans('subdomains::strings.all_nodes')),
                 IconColumn::make('is_synced')
                     ->label(trans('subdomains::strings.is_synced'))
                     ->state(fn (CloudflareDomain $domain) => !is_null($domain->cloudflare_id))
@@ -150,13 +152,15 @@ class CloudflareDomainResource extends Resource
                 Select::make('allowed_record_types')
                     ->label(trans('subdomains::strings.allowed_record_types'))
                     ->options(RecordType::class)
-                    ->multiple(),
+                    ->multiple()
+                    ->placeholder(trans('subdomains::strings.all_record_types')),
                 Select::make('allowed_nodes')
                     ->label(trans('subdomains::strings.allowed_nodes'))
                     ->multiple()
                     ->searchable()
                     ->preload()
-                    ->relationship('nodes', 'name', fn (Builder $query) => $query->whereIn('nodes.id', user()?->accessibleNodes()->pluck('id'))),
+                    ->relationship('nodes', 'name', fn (Builder $query) => $query->whereIn('nodes.id', user()?->accessibleNodes()->pluck('id')))
+                    ->placeholder(trans('subdomains::strings.all_nodes')),
             ]);
     }
 

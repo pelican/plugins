@@ -70,11 +70,11 @@ class CloudflareDomainResource extends Resource
                 TextColumn::make('allowed_record_types')
                     ->label(trans('subdomains::strings.allowed_record_types'))
                     ->badge()
-                    ->default(trans('subdomains::strings.all_record_types')),
+                    ->placeholder(trans('subdomains::strings.all_record_types')),
                 TextColumn::make('nodes.name')
                     ->label(trans('subdomains::strings.allowed_nodes'))
                     ->badge()
-                    ->default(trans('subdomains::strings.all_nodes')),
+                    ->placeholder(trans('subdomains::strings.all_nodes')),
                 IconColumn::make('is_synced')
                     ->label(trans('subdomains::strings.is_synced'))
                     ->state(fn (CloudflareDomain $domain) => !is_null($domain->cloudflare_id))

@@ -47,7 +47,7 @@ class SubdomainTargetResource extends Resource
                         ])->save();
                     }),
                 ToggleColumn::make('subdomain_use_alias')
-                    ->label(trans('subdomains::strings.subdomain_use_alias'))
+                    ->label(trans('subdomains::strings.use_allocation_alias'))
                     ->updateStateUsing(function (Node $node, $state) {
                         $node->forceFill([
                             'subdomain_use_alias' => $state,

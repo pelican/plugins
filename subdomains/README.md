@@ -46,7 +46,7 @@ Note: According to [RFC2782](https://www.rfc-editor.org/info/rfc2782/), SRV reco
 
 ### Use Allocation Alias
 
-You can specify whether servers on a specific node should use the allocation IP, or the allocation Alias when creating A and AAAA records.
+You can specify whether servers on a specific node should use the allocation Alias instead of the allocation IP when creating A and AAAA records.
 
 This option is recommended if your node is not directly exposed to the internet.
 

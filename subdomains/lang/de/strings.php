@@ -22,6 +22,7 @@ return [
     'is_synced' => 'Ist synchronisiert?',
     'subdomain_target' => 'Subdomain Ziel',
     'no_subdomain_target' => 'Kein Subdomain Ziel',
+    'use_allocation_alias' => 'Allocation Alias verwenden',
 
     'sync' => 'Synchronisieren',
 

@@ -66,7 +66,7 @@ class CloudflareDomain extends Model
         return $this->prefix == '' ? $this->name : "$this->prefix.$this->name";
     }
 
-    public function prependPrefix(string $subdomain): string
+    public function appendPrefix(string $subdomain): string
     {
         return $this->prefix == '' ? $subdomain : "$subdomain.$this->prefix";
     }
@@ -102,23 +102,26 @@ class CloudflareDomain extends Model
     public function availableRecordTypes(Server $server): Collection
     {
         $allocation = $server->allocation;
+        $targetAddress = $server->node->subdomain_use_alias ? $allocation->ip_alias : $allocation->ip; // @phpstan-ignore property.notFound
+
         $subdomainTarget = $server->node->subdomain_target; // @phpstan-ignore property.notFound
+        $srvServiceType = SRVServiceType::fromServer($server);
+
         $allowedRecordTypes = $this->allowed_record_types;
         $allowedRecordsFilterDisabled = $allowedRecordTypes->isEmpty();
-        $srvServiceType = SRVServiceType::fromServer($server);
 
         $types = new Collection();
 
         // Explicitly forbid ANY record creation when primary allocation is invalid
-        if ($allocation && in_array($allocation->ip, ['0.0.0.0', '::'])) {
+        if (in_array($targetAddress, ['0.0.0.0', '::'])) {
             return $types;
         }
 
-        if (($allowedRecordsFilterDisabled || $allowedRecordTypes->contains(RecordType::A)) && $allocation && is_ipv4($allocation->ip)) {
+        if (($allowedRecordsFilterDisabled || $allowedRecordTypes->contains(RecordType::A)) && is_ipv4($targetAddress)) {
             $types->add(RecordType::A);
         }
 
-        if (($allowedRecordsFilterDisabled || $allowedRecordTypes->contains(RecordType::AAAA)) && $allocation && is_ipv6($allocation->ip)) {
+        if (($allowedRecordsFilterDisabled || $allowedRecordTypes->contains(RecordType::AAAA)) && is_ipv6($targetAddress)) {
             $types->add(RecordType::AAAA);
         }
 

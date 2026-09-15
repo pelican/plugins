@@ -66,13 +66,21 @@ class Subdomain extends Model implements HasLabel
     /** @throws Exception */
     public function upsertOnCloudflare(): void
     {
-        // Explicitly forbid ANY record creation when primary allocation is invalid
-        if ($this->server->allocation && in_array($this->server->allocation->ip, ['0.0.0.0', '::'])) {
-            throw new Exception('Server has invalid allocation ip (0.0.0.0 or ::)');
-        }
+
+        $allocation = $this->server->allocation;
+        $targetAddress = $this->server->node->subdomain_use_alias ? $allocation->ip_alias : $allocation->ip; // @phpstan-ignore property.notFound
 
         $subdomainTarget = $this->server->node->subdomain_target; // @phpstan-ignore property.notFound
+        $srvServiceType = SRVServiceType::fromServer($this->server);
+
         $node_id = $this->server->node->id;
+
+        $searchName = $this->domain->appendPrefix($this->name);
+
+        // Explicitly forbid ANY record creation when primary allocation is invalid
+        if (in_array($targetAddress, ['0.0.0.0', '::'])) {
+            throw new Exception('Server has invalid allocation ip (0.0.0.0 or ::)');
+        }
 
         if (!($this->domain->nodes->isEmpty() || $this->domain->nodes()->where('nodes.id', $node_id)->exists())) {
             throw new Exception('Domain ' . $this->domain->nameWithPrefix() . ' is not permitted on node ' . $this->server->node->name);
@@ -84,7 +92,7 @@ class Subdomain extends Model implements HasLabel
 
         switch ($this->record_type) {
             case RecordType::SRV:
-                if (!$this->server->allocation) {
+                if (!$allocation) {
                     throw new Exception('Server has no allocation');
                 }
 
@@ -92,13 +100,11 @@ class Subdomain extends Model implements HasLabel
                     throw new Exception('Node has no Subdomain target');
                 }
 
-                $srvServiceType = SRVServiceType::fromServer($this->server);
-
                 if (!$srvServiceType) {
                     throw new Exception('Server has no SRV type');
                 }
 
-                $searchName = $this->domain->prependPrefix("$srvServiceType->value.$this->name");
+                $searchName = "$srvServiceType->value.$searchName";
 
                 $payload = [
                     'name' => $searchName,
@@ -119,8 +125,6 @@ class Subdomain extends Model implements HasLabel
                     throw new Exception('Node has no Subdomain target');
                 }
 
-                $searchName = $this->domain->prependPrefix($this->name);
-
                 $payload = [
                     'name' => $searchName,
                     'type' => $this->record_type->value,
@@ -131,24 +135,43 @@ class Subdomain extends Model implements HasLabel
                 break;
 
             case RecordType::A:
-            case RecordType::AAAA:
                 if (!$this->server->allocation) {
                     throw new Exception('Server has no allocation');
                 }
 
-                $searchName = $this->domain->prependPrefix($this->name);
+                if (!is_ipv4($targetAddress)) {
+                    throw new Exception('Allocation target address ' . $targetAddress . ' is not a valid IPv4 address');
+                }
 
                 $payload = [
                     'name' => $searchName,
                     'type' => $this->record_type->value,
                     'comment' => 'Created by Pelican Subdomains plugin',
-                    'content' => $this->server->allocation->ip,
+                    'content' => $targetAddress,
+                    'proxied' => false,
+                ];
+                break;
+
+            case RecordType::AAAA:
+                if (!$this->server->allocation) {
+                    throw new Exception('Server has no allocation');
+                }
+
+                if (!is_ipv6($targetAddress)) {
+                    throw new Exception('Allocation target address ' . $targetAddress . ' is not a valid IPv6 address');
+                }
+
+                $payload = [
+                    'name' => $searchName,
+                    'type' => $this->record_type->value,
+                    'comment' => 'Created by Pelican Subdomains plugin',
+                    'content' => $targetAddress,
                     'proxied' => false,
                 ];
                 break;
 
             default:
-                throw new Exception('Requested subdomain type is unsupported');
+                throw new Exception('Requested subdomain type '. $this->record_type . ' is unsupported');
         }
 
         // @phpstan-ignore staticMethod.notFound

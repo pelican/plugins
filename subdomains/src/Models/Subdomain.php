@@ -72,7 +72,11 @@ class Subdomain extends Model implements HasLabel
         }
 
         $allocation = $this->server->allocation;
-        $targetAddress = $this->server->node->subdomain_use_alias ? $allocation->ip_alias : $allocation->ip; // @phpstan-ignore property.notFound
+
+        $targetAddress = '';
+        if ($allocation) {
+            $targetAddress = $this->server->node->subdomain_use_alias ? $allocation->ip_alias : $allocation->ip; // @phpstan-ignore property.notFound
+        }
 
         $subdomainTarget = $this->server->node->subdomain_target; // @phpstan-ignore property.notFound
         $srvServiceType = SRVServiceType::fromServer($this->server);

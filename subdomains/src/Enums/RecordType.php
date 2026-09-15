@@ -30,7 +30,11 @@ enum RecordType: string implements HasLabel
     public function canBeUsedErrors(Server $server, CloudflareDomain $domain): Collection
     {
         $allocation = $server->allocation;
-        $targetAddress = $server->node->subdomain_use_alias ? $allocation->ip_alias : $allocation->ip; // @phpstan-ignore property.notFound
+
+        $targetAddress = '';
+        if ($allocation) {
+            $targetAddress = $server->node->subdomain_use_alias ? $allocation->ip_alias : $allocation->ip; // @phpstan-ignore property.notFound
+        }
 
         $subdomainTarget = $server->node->subdomain_target; // @phpstan-ignore property.notFound
         $srvServiceType = SRVServiceType::fromServer($server);

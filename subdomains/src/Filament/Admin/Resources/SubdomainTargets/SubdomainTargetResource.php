@@ -8,6 +8,7 @@ use Boy132\Subdomains\Filament\Admin\Resources\SubdomainTargets\Pages\ManageSubd
 use Filament\Resources\Resource;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Columns\TextInputColumn;
+use Filament\Tables\Columns\ToggleColumn;
 use Filament\Tables\Table;
 
 class SubdomainTargetResource extends Resource
@@ -43,6 +44,13 @@ class SubdomainTargetResource extends Resource
                     ->updateStateUsing(function (Node $node, $state) {
                         $node->forceFill([
                             'subdomain_target' => $state,
+                        ])->save();
+                    }),
+                ToggleColumn::make('subdomain_use_alias')
+                    ->label(trans('subdomains::strings.use_allocation_alias'))
+                    ->updateStateUsing(function (Node $node, $state) {
+                        $node->forceFill([
+                            'subdomain_use_alias' => $state,
                         ])->save();
                     }),
             ])

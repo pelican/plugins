@@ -22,6 +22,7 @@ return [
     'is_synced' => 'Is Synced?',
     'subdomain_target' => 'Subdomain target',
     'no_subdomain_target' => 'No Subdomain target',
+    'use_allocation_alias' => 'Use allocation alias',
 
     'sync' => 'Sync',
 

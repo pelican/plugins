@@ -44,6 +44,14 @@ CNAME and SRV Subdomains must point to a specific Subdomain target. These can be
 
 Note: According to [RFC2782](https://www.rfc-editor.org/info/rfc2782/), SRV records must always point to either an A or AAAA record. While some applications may handle SRV records pointing to CNAME records correctly, this can lead to undefined behavior.
 
+### Use Allocation Alias
+
+You can specify whether servers on a specific node should use the allocation Alias instead of the allocation IP when creating A and AAAA records.
+
+This option is recommended if your node is not directly exposed to the internet.
+
+If your allocation Alias is not a valid IPv4 / IPv6 address, the corresponding record types will not be available.
+
 ### SRV service types
 
 SRV Subdomains require an SRV service type. This must be configured in the egg features section. The format is `srv-` and then the service name, e.g. `srv-minecraft` or `srv-rust`.

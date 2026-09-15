@@ -66,6 +66,10 @@ class Subdomain extends Model implements HasLabel
     /** @throws Exception */
     public function upsertOnCloudflare(): void
     {
+        $errors = $this->record_type->canBeUsed($this->server, $this->domain);
+        if ($errors->isNotEmpty()) {
+            throw new Exception($errors->first());
+        }
 
         $allocation = $this->server->allocation;
         $targetAddress = $this->server->node->subdomain_use_alias ? $allocation->ip_alias : $allocation->ip; // @phpstan-ignore property.notFound
@@ -73,37 +77,10 @@ class Subdomain extends Model implements HasLabel
         $subdomainTarget = $this->server->node->subdomain_target; // @phpstan-ignore property.notFound
         $srvServiceType = SRVServiceType::fromServer($this->server);
 
-        $node_id = $this->server->node->id;
-
         $searchName = $this->domain->appendPrefix($this->name);
-
-        // Explicitly forbid ANY record creation when primary allocation is invalid
-        if (in_array($targetAddress, ['0.0.0.0', '::'])) {
-            throw new Exception('Server has invalid allocation ip (0.0.0.0 or ::)');
-        }
-
-        if (!($this->domain->nodes->isEmpty() || $this->domain->nodes()->where('nodes.id', $node_id)->exists())) {
-            throw new Exception('Domain ' . $this->domain->nameWithPrefix() . ' is not permitted on node ' . $this->server->node->name);
-        }
-
-        if (!($this->domain->allowed_record_types->isEmpty() || $this->domain->allowed_record_types->contains($this->record_type))) {
-            throw new Exception('Record type ' . $this->record_type->value . ' is not permitted on domain ' . $this->domain->nameWithPrefix());
-        }
 
         switch ($this->record_type) {
             case RecordType::SRV:
-                if (!$allocation) {
-                    throw new Exception('Server has no allocation');
-                }
-
-                if (!$subdomainTarget) {
-                    throw new Exception('Node has no Subdomain target');
-                }
-
-                if (!$srvServiceType) {
-                    throw new Exception('Server has no SRV type');
-                }
-
                 $searchName = "$srvServiceType->value.$searchName";
 
                 $payload = [
@@ -111,7 +88,7 @@ class Subdomain extends Model implements HasLabel
                     'type' => $this->record_type->value,
                     'comment' => 'Created by Pelican Subdomains plugin',
                     'data' => [
-                        'port' => $this->server->allocation->port,
+                        'port' => $allocation->port,
                         'priority' => 0,
                         'target' => $subdomainTarget,
                         'weight' => 0,
@@ -121,10 +98,6 @@ class Subdomain extends Model implements HasLabel
                 break;
 
             case RecordType::CNAME:
-                if (!$subdomainTarget) {
-                    throw new Exception('Node has no Subdomain target');
-                }
-
                 $payload = [
                     'name' => $searchName,
                     'type' => $this->record_type->value,
@@ -135,32 +108,7 @@ class Subdomain extends Model implements HasLabel
                 break;
 
             case RecordType::A:
-                if (!$this->server->allocation) {
-                    throw new Exception('Server has no allocation');
-                }
-
-                if (!is_ipv4($targetAddress)) {
-                    throw new Exception('Allocation target address ' . $targetAddress . ' is not a valid IPv4 address');
-                }
-
-                $payload = [
-                    'name' => $searchName,
-                    'type' => $this->record_type->value,
-                    'comment' => 'Created by Pelican Subdomains plugin',
-                    'content' => $targetAddress,
-                    'proxied' => false,
-                ];
-                break;
-
             case RecordType::AAAA:
-                if (!$this->server->allocation) {
-                    throw new Exception('Server has no allocation');
-                }
-
-                if (!is_ipv6($targetAddress)) {
-                    throw new Exception('Allocation target address ' . $targetAddress . ' is not a valid IPv6 address');
-                }
-
                 $payload = [
                     'name' => $searchName,
                     'type' => $this->record_type->value,

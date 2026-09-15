@@ -5,7 +5,6 @@ namespace Boy132\Subdomains\Models;
 use App\Models\Node;
 use App\Models\Server;
 use Boy132\Subdomains\Enums\RecordType;
-use Boy132\Subdomains\Enums\SRVServiceType;
 use Exception;
 use Illuminate\Database\Eloquent\Casts\AsEnumCollection;
 use Illuminate\Database\Eloquent\Model;
@@ -97,43 +96,14 @@ class CloudflareDomain extends Model
     }
 
     /**
-     * @return Collection<string>
+     * @return Collection<RecordType>
      */
     public function availableRecordTypes(Server $server): Collection
     {
-        $allocation = $server->allocation;
-        $targetAddress = $server->node->subdomain_use_alias ? $allocation->ip_alias : $allocation->ip; // @phpstan-ignore property.notFound
-
-        $subdomainTarget = $server->node->subdomain_target; // @phpstan-ignore property.notFound
-        $srvServiceType = SRVServiceType::fromServer($server);
-
-        $allowedRecordTypes = $this->allowed_record_types;
-        $allowedRecordsFilterDisabled = $allowedRecordTypes->isEmpty();
-
-        $types = new Collection();
-
-        // Explicitly forbid ANY record creation when primary allocation is invalid
-        if (in_array($targetAddress, ['0.0.0.0', '::'])) {
-            return $types;
-        }
-
-        if (($allowedRecordsFilterDisabled || $allowedRecordTypes->contains(RecordType::A)) && is_ipv4($targetAddress)) {
-            $types->add(RecordType::A);
-        }
-
-        if (($allowedRecordsFilterDisabled || $allowedRecordTypes->contains(RecordType::AAAA)) && is_ipv6($targetAddress)) {
-            $types->add(RecordType::AAAA);
-        }
-
-        if (($allowedRecordsFilterDisabled || $allowedRecordTypes->contains(RecordType::CNAME)) && $subdomainTarget) {
-            $types->add(RecordType::CNAME);
-        }
-
-        if (($allowedRecordsFilterDisabled || $allowedRecordTypes->contains(RecordType::SRV)) && $allocation && $subdomainTarget && $srvServiceType) {
-            $types->add(RecordType::SRV);
-        }
-
-        return $types;
+        return collect(RecordType::cases())
+            ->filter(fn ($recordType) => $recordType
+                ->canBeUsed($server, $this)
+                ->isEmpty());
     }
 
     /**

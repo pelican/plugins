@@ -66,7 +66,7 @@ class Subdomain extends Model implements HasLabel
     /** @throws Exception */
     public function upsertOnCloudflare(): void
     {
-        $errors = $this->record_type->canBeUsed($this->server, $this->domain);
+        $errors = $this->record_type->canBeUsedErrors($this->server, $this->domain);
         if ($errors->isNotEmpty()) {
             throw new Exception($errors->first());
         }

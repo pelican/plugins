@@ -102,7 +102,7 @@ class CloudflareDomain extends Model
     {
         return collect(RecordType::cases())
             ->filter(fn ($recordType) => $recordType
-                ->canBeUsed($server, $this)
+                ->canBeUsedErrors($server, $this)
                 ->isEmpty());
     }
 

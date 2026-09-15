@@ -27,7 +27,7 @@ enum RecordType: string implements HasLabel
      *
      * @return Collection<string>
      */
-    public function canBeUsed(Server $server, CloudflareDomain $domain): Collection
+    public function canBeUsedErrors(Server $server, CloudflareDomain $domain): Collection
     {
         $allocation = $server->allocation;
         $targetAddress = $server->node->subdomain_use_alias ? $allocation->ip_alias : $allocation->ip; // @phpstan-ignore property.notFound

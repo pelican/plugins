@@ -29,6 +29,8 @@ enum RecordType: string implements HasLabel
      */
     public function canBeUsedErrors(Server $server, CloudflareDomain $domain): Collection
     {
+        $errors = new Collection();
+
         $allocation = $server->allocation;
 
         $targetAddress = '';
@@ -44,8 +46,6 @@ enum RecordType: string implements HasLabel
         $srvServiceType = SRVServiceType::fromServer($server);
 
         $node_id = $server->node->id;
-
-        $errors = new Collection();
 
         // General restrictions checks
 

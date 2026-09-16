@@ -33,6 +33,10 @@ enum RecordType: string implements HasLabel
 
         $targetAddress = '';
         if ($allocation) {
+            if (in_array($allocation->ip, ['0.0.0.0', '::'])) {
+                $errors->add('Allocation ip is invalid (0.0.0.0 or ::)');
+            }
+
             $targetAddress = $server->node->subdomain_use_alias ? $allocation->ip_alias : $allocation->ip; // @phpstan-ignore property.notFound
         }
 

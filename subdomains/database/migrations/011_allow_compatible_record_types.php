@@ -11,7 +11,16 @@ return new class extends Migration
     {
         Schema::table('subdomains', function (Blueprint $table) {
             $table->dropUnique(['name', 'domain_id']);
-            $table->unique(['name', 'domain_id', 'record_type']);
+            $table->string('record_identifier')->nullable()->after('record_type');
+        });
+
+        \Boy132\Subdomains\Models\Subdomain::query()->with('server')->each(function ($subdomain) {
+            $subdomain->saveQuietly();
+        });
+
+        Schema::table('subdomains', function (Blueprint $table) {
+            $table->string('record_identifier')->nullable(false)->change();
+            $table->unique(['name', 'domain_id', 'record_identifier']);
         });
     }
 
@@ -30,8 +39,9 @@ return new class extends Migration
         }
 
         Schema::table('subdomains', function (Blueprint $table) {
-            $table->dropUnique(['name', 'domain_id', 'record_type']);
+            $table->dropUnique(['name', 'domain_id', 'record_identifier']);
             $table->unique(['name', 'domain_id']);
+            $table->dropColumn('record_identifier');
         });
     }
 };

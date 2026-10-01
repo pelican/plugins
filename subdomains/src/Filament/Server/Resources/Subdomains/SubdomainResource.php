@@ -160,7 +160,7 @@ class SubdomainResource extends Resource
                                     default => [$get('record_type'), RecordType::CNAME->value],
                                 });
                             } else {
-                                $rule->where('record_type', $get('record_type'));
+                                $rule->where('record_identifier', RecordType::SRV->uniqueIdentifier($server));
                             }
 
                             return $rule;

@@ -20,6 +20,15 @@ enum RecordType: string implements HasLabel
         return $this->name;
     }
 
+    public function uniqueIdentifier(Server $server): string
+    {
+        if ($this !== self::SRV) {
+            return $this->value;
+        }
+
+        return SRVServiceType::fromServer($server)?->value ?? 'SRV';
+    }
+
     /**
      * Returns errors that prevent this record type from being used with the provided server and domain.
      * If empty, then this record type is allowed to be used.

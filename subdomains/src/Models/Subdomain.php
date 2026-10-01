@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\Http;
  * @property string $name
  * @property RecordType $record_type
  * @property ?string $cloudflare_id
+ * @property string $record_identifier
  * @property int $domain_id
  * @property CloudflareDomain $domain
  * @property int $server_id
@@ -38,6 +39,10 @@ class Subdomain extends Model implements HasLabel
 
         static::deleted(function (self $model) {
             $model->deleteOnCloudflare();
+        });
+
+        static::saving(function (self $model) {
+            $model->record_identifier = $model->record_type->uniqueIdentifier($model->server);
         });
     }
 
@@ -139,7 +144,7 @@ class Subdomain extends Model implements HasLabel
                     $recordType = $record['type'];
                     $isConflict = match ($this->record_type) {
                         RecordType::CNAME => true,
-                        RecordType::A, RecordType::AAAA => $recordType === 'CNAME',
+                        RecordType::A, RecordType::AAAA => in_array($recordType, [$this->record_type->value, 'CNAME'], true),
                         RecordType::SRV => in_array($recordType, ['CNAME', 'SRV']),
                     };
 

@@ -3,6 +3,7 @@
 namespace Boy132\Subdomains\Filament\Admin\Resources\Servers\RelationManagers;
 
 use App\Models\Server;
+use Boy132\Subdomains\Enums\RecordType;
 use Boy132\Subdomains\Models\CloudflareDomain;
 use Boy132\Subdomains\Models\Subdomain;
 use Boy132\Subdomains\Rules\NotOnBlacklist;
@@ -115,10 +116,21 @@ class SubdomainRelationManager extends RelationManager
                     ->required()
                     ->unique(
                         ignoreRecord: true,
-                        modifyRuleUsing: fn (Unique $rule, Get $get) => $rule
-                            ->where('domain_id', $get('domain_id'))
-                            ->where('record_type', $get('record_type'))
-                            ->where('server_id', $this->getOwnerRecord()->id),
+                        modifyRuleUsing: function (Unique $rule, Get $get): Unique {
+                            $rule->where('domain_id', $get('domain_id'));
+
+                            if (in_array($get('record_type'), [RecordType::A->value, RecordType::AAAA->value, RecordType::CNAME->value])) {
+                                $rule->whereIn('record_type', match ($get('record_type')) {
+                                    RecordType::CNAME->value => [RecordType::A->value, RecordType::AAAA->value, RecordType::CNAME->value],
+                                    default => [$get('record_type'), RecordType::CNAME->value],
+                                });
+                            } else {
+                                $rule->where('record_type', $get('record_type'))
+                                    ->where('server_id', $this->getOwnerRecord()->id);
+                            }
+
+                            return $rule;
+                        },
                     )
                     ->alphaDash()
                     ->rule(new NotOnBlacklist())

@@ -1,5 +1,6 @@
 <?php
 
+use Boy132\Subdomains\Models\Subdomain;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
@@ -14,7 +15,7 @@ return new class extends Migration
             $table->string('record_identifier')->nullable()->after('record_type');
         });
 
-        \Boy132\Subdomains\Models\Subdomain::query()->with('server')->each(function ($subdomain) {
+        Subdomain::query()->with('server')->each(function (Subdomain $subdomain) {
             $subdomain->saveQuietly();
         });
 

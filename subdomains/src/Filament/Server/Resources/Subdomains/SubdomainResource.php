@@ -5,6 +5,7 @@ namespace Boy132\Subdomains\Filament\Server\Resources\Subdomains;
 use App\Models\Server;
 use App\Traits\Filament\BlockAccessInConflict;
 use App\Traits\Filament\HasLimitBadge;
+use Boy132\Subdomains\Enums\RecordType;
 use Boy132\Subdomains\Filament\Server\Resources\Subdomains\Pages\ListSubdomains;
 use Boy132\Subdomains\Models\CloudflareDomain;
 use Boy132\Subdomains\Models\Subdomain;
@@ -26,6 +27,7 @@ use Filament\Support\Enums\IconSize;
 use Filament\Support\Exceptions\Halt;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use Illuminate\Validation\Rules\Unique;
 
 class SubdomainResource extends Resource
 {
@@ -147,7 +149,23 @@ class SubdomainResource extends Resource
                 TextInput::make('name')
                     ->label(trans('subdomains::strings.name'))
                     ->required()
-                    ->unique()
+                    ->unique(
+                        ignoreRecord: true,
+                        modifyRuleUsing: function (Unique $rule, Get $get) use ($server): Unique {
+                            $rule->where('domain_id', $get('domain_id'));
+
+                            if (in_array($get('record_type'), [RecordType::A->value, RecordType::AAAA->value, RecordType::CNAME->value])) {
+                                $rule->whereIn('record_type', match ($get('record_type')) {
+                                    RecordType::CNAME->value => [RecordType::A->value, RecordType::AAAA->value, RecordType::CNAME->value],
+                                    default => [$get('record_type'), RecordType::CNAME->value],
+                                });
+                            } else {
+                                $rule->where('record_identifier', RecordType::SRV->uniqueIdentifier($server));
+                            }
+
+                            return $rule;
+                        },
+                    )
                     ->alphaDash()
                     ->rule(new NotOnBlacklist())
                     ->columnSpanFull()

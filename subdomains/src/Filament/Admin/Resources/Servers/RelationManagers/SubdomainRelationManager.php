@@ -22,6 +22,7 @@ use Filament\Schemas\Schema;
 use Filament\Support\Exceptions\Halt;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use Illuminate\Validation\Rules\Unique;
 
 /**
  * @method Server getOwnerRecord()
@@ -112,7 +113,12 @@ class SubdomainRelationManager extends RelationManager
                 TextInput::make('name')
                     ->label(trans('subdomains::strings.name'))
                     ->required()
-                    ->unique()
+                    ->unique(
+                        ignoreRecord: true,
+                        modifyRuleUsing: fn (Unique $rule, Get $get) => $rule
+                            ->where('domain_id', $get('domain_id'))
+                            ->where('record_type', $get('record_type')),
+                    )
                     ->alphaDash()
                     ->rule(new NotOnBlacklist())
                     ->columnSpanFull()

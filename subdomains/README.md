@@ -1,6 +1,6 @@
 # Subdomains (by Boy132 & HarlequinSin)
 
-Allows users to create and manage custom subdomains (A/AAAA or SRV) for their game servers using Cloudflare DNS.
+Allows users to create and manage custom subdomains (A/AAAA, CNAME, or SRV) for their game servers using Cloudflare DNS.
 
 ## Setup
 
@@ -32,17 +32,21 @@ If a DNS Record type is not available, check whether it is enabled on the domain
 
 ### Server primary allocations
 
-A and AAAA Subdomains will use the IP of the server's primary allocation as their target. SRV records will use the primary allocation's port as part of their target.
+A and AAAA Subdomains will use the IP of the server's primary allocation as their target. SRV records require a primary allocation and use its port as part of their target. CNAME records use the node's configured subdomain target and do not use the primary allocation.
 
-IPs such as `0.0.0.0` and `::` are considered invalid for the purposes of creating subdomains. They should be changed to proper IP addresses on which your servers can be reached.
+For A and AAAA records, IPs such as `0.0.0.0` and `::` are considered invalid. They should be changed to proper IP addresses on which your servers can be reached.
 
-**IMPORTANT: In order to create subdomains for a server, that server's primary allocation MUST have a valid IP address.** This also applies for CNAME and SRV Subdomains.
+**IMPORTANT: In order to create A or AAAA subdomains for a server, that server's primary allocation MUST have a valid IP address.** SRV subdomains require a primary allocation because they use its port, but do not use its IP address. CNAME subdomains do not require an allocation.
 
 ### Subdomain targets
 
 CNAME and SRV Subdomains must point to a specific Subdomain target. These can be configured for every node individually in the admin area.
 
 Note: According to [RFC2782](https://www.rfc-editor.org/info/rfc2782/), SRV records must always point to either an A or AAAA record. While some applications may handle SRV records pointing to CNAME records correctly, this can lead to undefined behavior.
+
+### Record coexistence
+
+SRV records can coexist with A, AAAA, and CNAME records because they are created at a separate service-specific name. A and AAAA records can also coexist at the same name. CNAME records cannot coexist with any other record at the same name.
 
 ### Use Allocation Alias
 

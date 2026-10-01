@@ -35,7 +35,7 @@ enum RecordType: string implements HasLabel
 
         $targetAddress = '';
         if ($allocation) {
-            if (in_array($allocation->ip, ['0.0.0.0', '::'])) {
+            if (in_array($this, [self::A, self::AAAA]) && in_array($allocation->ip, ['0.0.0.0', '::'])) {
                 $errors->add('Allocation ip is invalid (0.0.0.0 or ::)');
             }
 
@@ -63,7 +63,7 @@ enum RecordType: string implements HasLabel
             $errors->add('Server has no allocation');
         }
 
-        if (in_array($targetAddress, ['0.0.0.0', '::'])) {
+        if (in_array($this, [self::A, self::AAAA]) && in_array($targetAddress, ['0.0.0.0', '::'])) {
             $errors->add('Allocation target address is invalid (0.0.0.0 or ::)');
         }
 

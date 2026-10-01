@@ -129,7 +129,6 @@ class Subdomain extends Model implements HasLabel
         // @phpstan-ignore staticMethod.notFound
         $searchResponse = Http::cloudflare()->get("zones/{$this->domain->cloudflare_id}/dns_records", [
             'name' => $searchName,
-            'type' => $this->record_type,
         ])->json();
 
         if ($searchResponse['success']) {
@@ -137,7 +136,16 @@ class Subdomain extends Model implements HasLabel
 
             foreach ($results as $record) {
                 if ($record['id'] !== $this->cloudflare_id) {
-                    throw new Exception('A subdomain with that name already exists');
+                    $recordType = $record['type'];
+                    $isConflict = match ($this->record_type) {
+                        RecordType::CNAME => true,
+                        RecordType::A, RecordType::AAAA => $recordType === 'CNAME',
+                        RecordType::SRV => in_array($recordType, ['CNAME', 'SRV']),
+                    };
+
+                    if ($isConflict) {
+                        throw new Exception("A $recordType record already exists for this subdomain");
+                    }
                 }
             }
         } else {

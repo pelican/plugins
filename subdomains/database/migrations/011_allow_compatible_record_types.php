@@ -16,6 +16,7 @@ return new class extends Migration
         });
 
         Subdomain::query()->with('server')->each(function (Subdomain $subdomain) {
+            $subdomain->record_identifier = $subdomain->record_type->uniqueIdentifier($subdomain->server);
             $subdomain->saveQuietly();
         });
 

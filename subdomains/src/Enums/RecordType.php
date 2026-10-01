@@ -26,7 +26,9 @@ enum RecordType: string implements HasLabel
             return $this->value;
         }
 
-        return SRVServiceType::fromServer($server)->value ?? 'SRV';
+        $serviceType = SRVServiceType::fromServer($server);
+
+        return $serviceType ? $serviceType->value : 'SRV';
     }
 
     /**

@@ -11,7 +11,7 @@ return new class extends Migration
     {
         Schema::table('subdomains', function (Blueprint $table) {
             $table->dropUnique(['name', 'domain_id']);
-            $table->unique(['name', 'domain_id', 'record_type', 'server_id']);
+            $table->unique(['name', 'domain_id', 'record_type']);
         });
     }
 
@@ -30,7 +30,7 @@ return new class extends Migration
         }
 
         Schema::table('subdomains', function (Blueprint $table) {
-            $table->dropUnique(['name', 'domain_id', 'record_type', 'server_id']);
+            $table->dropUnique(['name', 'domain_id', 'record_type']);
             $table->unique(['name', 'domain_id']);
         });
     }

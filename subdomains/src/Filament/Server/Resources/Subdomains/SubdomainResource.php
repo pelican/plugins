@@ -151,7 +151,7 @@ class SubdomainResource extends Resource
                     ->required()
                     ->unique(
                         ignoreRecord: true,
-                        modifyRuleUsing: function (Unique $rule, Get $get) use ($server): Unique {
+                        modifyRuleUsing: function (Unique $rule, Get $get): Unique {
                             $rule->where('domain_id', $get('domain_id'));
 
                             if (in_array($get('record_type'), [RecordType::A->value, RecordType::AAAA->value, RecordType::CNAME->value])) {
@@ -160,8 +160,7 @@ class SubdomainResource extends Resource
                                     default => [$get('record_type'), RecordType::CNAME->value],
                                 });
                             } else {
-                                $rule->where('record_type', $get('record_type'))
-                                    ->where('server_id', $server->id);
+                                $rule->where('record_type', $get('record_type'));
                             }
 
                             return $rule;

@@ -125,8 +125,7 @@ class SubdomainRelationManager extends RelationManager
                                     default => [$get('record_type'), RecordType::CNAME->value],
                                 });
                             } else {
-                                $rule->where('record_type', $get('record_type'))
-                                    ->where('server_id', $this->getOwnerRecord()->id);
+                                $rule->where('record_type', $get('record_type'));
                             }
 
                             return $rule;

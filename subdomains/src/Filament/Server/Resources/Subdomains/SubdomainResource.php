@@ -153,7 +153,7 @@ class SubdomainResource extends Resource
                         modifyRuleUsing: fn (Unique $rule, Get $get) => $rule
                             ->where('domain_id', $get('domain_id'))
                             ->where('record_type', $get('record_type'))
-                            ->where('server_id', Filament::getTenant()->id),
+                            ->where('server_id', $server->id),
                     )
                     ->alphaDash()
                     ->rule(new NotOnBlacklist())

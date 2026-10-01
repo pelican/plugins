@@ -117,7 +117,8 @@ class SubdomainRelationManager extends RelationManager
                         ignoreRecord: true,
                         modifyRuleUsing: fn (Unique $rule, Get $get) => $rule
                             ->where('domain_id', $get('domain_id'))
-                            ->where('record_type', $get('record_type')),
+                            ->where('record_type', $get('record_type'))
+                            ->where('server_id', $this->getOwnerRecord()->id),
                     )
                     ->alphaDash()
                     ->rule(new NotOnBlacklist())

@@ -33,6 +33,7 @@ class MinecraftBedrockQueryTypeSchema implements QueryTypeSchemaInterface
             $response = Http::acceptJson()
                 ->connectTimeout(2)
                 ->timeout(5)
+                ->withoutRedirecting()
                 ->get("http://{$ip}:{$port}/v1/join");
 
             if (!$response->successful()) {

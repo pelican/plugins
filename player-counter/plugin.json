@@ -2,7 +2,7 @@
     "id": "player-counter",
     "name": "Player Counter",
     "author": "Boy132",
-    "version": "1.2.0",
+    "version": "1.1.0",
     "description": "Show the amount of connected players to the server",
     "category": "plugin",
     "url": "https://hub.pelican.dev/plugins/player-counter",

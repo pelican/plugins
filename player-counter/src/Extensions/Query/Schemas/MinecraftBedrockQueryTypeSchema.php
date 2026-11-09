@@ -23,11 +23,11 @@ class MinecraftBedrockQueryTypeSchema implements QueryTypeSchemaInterface
     /** @return ?array{hostname: string, map: string, current_players: int, max_players: int, players: ?array<array{id: string, name: string}>} */
     public function process(Server $server, string $ip, int $port): ?array
     {
-        return $this->tryQueryNetherNet($ip, $port) ?? $this->tryQueryRakNet($ip, $port);
+        return $this->tryQueryNetherNet($server, $ip, $port) ?? $this->tryQueryRakNet($server, $ip, $port);
     }
 
     /** @return ?array{hostname: string, map: string, current_players: int, max_players: int, players: null} */
-    private function tryQueryNetherNet(string $ip, int $port): ?array
+    private function tryQueryNetherNet(Server $server, string $ip, int $port): ?array
     {
         try {
             $response = Http::acceptJson()
@@ -42,23 +42,15 @@ class MinecraftBedrockQueryTypeSchema implements QueryTypeSchemaInterface
 
             $info = $response->json();
 
-            if (
-                !is_array($info)
-                || !isset(
-                    $info['name'],
-                    $info['level'],
-                    $info['players'],
-                    $info['maxPlayers'],
-                )
-            ) {
+            if (!is_array($info)) {
                 return null;
             }
 
             return [
-                'hostname' => $info['name'],
-                'map' => $info['level'],
-                'current_players' => $info['players'],
-                'max_players' => $info['maxPlayers'],
+                'hostname' => is_string($info['name']) ? $info['name'] : $server->name,
+                'map' => is_string($info['level']) ? $info['level'] : 'world',
+                'current_players' => is_int($info['players']) ? $info['players'] : 0,
+                'max_players' => is_int($info['maxPlayers']) ? $info['maxPlayers'] : 0,
                 'players' => null, // Bedrock has no player list
             ];
         } catch (Exception) {
@@ -67,7 +59,7 @@ class MinecraftBedrockQueryTypeSchema implements QueryTypeSchemaInterface
     }
 
     /** @return ?array{hostname: string, map: string, current_players: int, max_players: int, players: null} */
-    private function tryQueryRakNet(string $ip, int $port): ?array
+    private function tryQueryRakNet(Server $server, string $ip, int $port): ?array
     {
         $query = new MinecraftQuery();
 
@@ -80,10 +72,10 @@ class MinecraftBedrockQueryTypeSchema implements QueryTypeSchemaInterface
             }
 
             return [
-                'hostname' => $info['HostName'],
-                'map' => $info['Map'],
-                'current_players' => $info['Players'],
-                'max_players' => $info['MaxPlayers'],
+                'hostname' => is_string($info['HostName']) ? $info['HostName'] : 'Unknown',
+                'map' => is_string($info['Map']) ? $info['Map'] : 'world',
+                'current_players' => is_int($info['Players']) ? $info['Players'] : 0,
+                'max_players' => is_int($info['MaxPlayers']) ? $info['MaxPlayers'] : 0,
                 'players' => null, // Bedrock has no player list
             ];
         } catch (Exception $exception) {

@@ -2,22 +2,24 @@
 
 namespace Boy132\NordTheme;
 
-use Filament\Contracts\Plugin;
+use App\Contracts\Plugins\HasTheme;
 use Filament\Panel;
 use Filament\Support\Colors\Color;
 
-class NordThemePlugin implements Plugin
+class NordThemePlugin implements HasTheme
 {
     public function getId(): string
     {
         return 'nord-theme';
     }
 
-    public function register(Panel $panel): void
-    {
-        $panel->viteTheme('plugins/nord-theme/resources/css/theme.css');
+    public function register(Panel $panel): void {}
 
-        $panel->colors([
+    public function boot(Panel $panel): void {}
+
+    public function getThemeColors(): array
+    {
+        return [
             'gray' => [
                 50 => '#eceff4',
                 100 => '#e5e9f0',
@@ -49,8 +51,21 @@ class NordThemePlugin implements Plugin
             'success' => Color::hex('#a3be8c'),
             'warning' => Color::hex('#ebcb8b'),
             'danger' => Color::hex('#bf616a'),
-        ]);
+        ];
     }
 
-    public function boot(Panel $panel): void {}
+    public function getThemeFont(): ?string
+    {
+        return null;
+    }
+
+    public function getThemeViteEntry(): string|array|null
+    {
+        return 'plugins/nord-theme/resources/css/theme.css';
+    }
+
+    public function getThemeRenderHooks(): array
+    {
+        return [];
+    }
 }

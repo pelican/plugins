@@ -9,7 +9,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('cloudflare_domains', function (Blueprint $table) {
-            $table->json('allowed_record_types')->after('prefix')->default('["A","AAAA","CNAME","SRV"]');
+            $table->json('allowed_record_types')->after('prefix')->nullable();
         });
     }
 

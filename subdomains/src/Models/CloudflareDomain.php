@@ -30,6 +30,10 @@ class CloudflareDomain extends Model
         'allowed_record_types',
     ];
 
+    protected $attributes = [
+        'allowed_record_types' => '[]',
+    ];
+    
     protected static function boot(): void
     {
         parent::boot();

@@ -31,9 +31,9 @@ return [
     'use_alias' => 'Allocation Alias verwenden?',
     'use_alias_hint' => 'Wenn aktiviert, wird für Queries der Allocation Alias anstelle der IP verwendet',
 
-    'query_rate_limit' => 'Query Rate Limit',
-    'query_rate_limit_hint' => 'Wie viele Query Anfragen die Client API pro Server erlaubt. Beide Query Endpunkte teilen sich dieses Limit. Auf 0 setzen, um dieses Limit zu deaktivieren. Das panelweite Rate Limit der Client API gilt weiterhin.',
-    'query_rate_limit_suffix' => 'pro Minute',
+    'query_api_rate_limit' => 'Query API Rate Limit',
+    'query_api_rate_limit_hint' => 'Wie viele Query Anfragen die Client API pro Server erlaubt. Beide Query Endpunkte teilen sich dieses Limit. Auf 0 setzen, um dieses Limit zu deaktivieren. Das panelweite Rate Limit der Client API gilt weiterhin.',
+    'query_api_rate_limit_suffix' => 'pro Minute',
 
     'table' => [
         'no_players' => ' Keine Spieler gefunden',

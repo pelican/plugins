@@ -26,7 +26,7 @@ class PlayerCounterRoutesProvider extends RouteServiceProvider
         RateLimiter::for(self::QUERY_THROTTLE_KEY, function (Request $request) {
             Assert::isInstanceOf($server = $request->route()->parameter('server'), Server::class);
 
-            $limit = config('player-counter.query_rate_limit');
+            $limit = config('player-counter.query_api_rate_limit');
 
             if ($limit === 0) {
                 return Limit::none();

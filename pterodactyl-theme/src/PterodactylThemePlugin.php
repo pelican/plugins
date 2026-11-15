@@ -2,11 +2,11 @@
 
 namespace Boy132\PterodactylTheme;
 
-use Filament\Contracts\Plugin;
+use App\Contracts\Plugins\HasTheme;
 use Filament\Panel;
 use Filament\Support\Colors\Color;
 
-class PterodactylThemePlugin implements Plugin
+class PterodactylThemePlugin implements HasTheme
 {
     public function getId(): string
     {
@@ -27,17 +27,30 @@ class PterodactylThemePlugin implements Plugin
         950 => 'oklch(0.2484 0.0128 248.51)',
     ];
 
-    public function register(Panel $panel): void
-    {
-        $panel
-            ->font('IBM Plex Sans')
-            ->monoFont('system-ui')
-            ->serifFont('sans-serif')
-            ->colors([
-                'gray' => self::PTERO_GRAY,
-                'primary' => Color::Blue,
-            ]);
-    }
+    public function register(Panel $panel): void {}
 
     public function boot(Panel $panel): void {}
+
+    public function getThemeColors(): array
+    {
+        return [
+            'gray' => self::PTERO_GRAY,
+            'primary' => Color::Blue,
+        ];
+    }
+
+    public function getThemeFont(): ?string
+    {
+        return 'IBM Plex Sans';
+    }
+
+    public function getThemeViteEntry(): string|array|null
+    {
+        return null;
+    }
+
+    public function getThemeRenderHooks(): array
+    {
+        return [];
+    }
 }

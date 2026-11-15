@@ -31,6 +31,10 @@ return [
     'use_alias' => 'Use allocation alias?',
     'use_alias_hint' => 'If checked, queries will use the allocation alias instead of the ip',
 
+    'query_api_rate_limit' => 'Query API rate limit',
+    'query_api_rate_limit_hint' => 'How many query requests the client API allows per server. Both query endpoints share this limit. Set to 0 to disable this limit. The panel-wide client API rate limit still applies.',
+    'query_api_rate_limit_suffix' => 'per minute',
+
     'table' => [
         'no_players' => 'No players found',
         'no_players_description' => 'Either no players are online or query is disabled on this server',

@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\Http;
  * @property string $name
  * @property RecordType $record_type
  * @property ?string $cloudflare_id
+ * @property string $record_identifier
  * @property int $domain_id
  * @property CloudflareDomain $domain
  * @property int $server_id
@@ -38,6 +39,10 @@ class Subdomain extends Model implements HasLabel
 
         static::deleted(function (self $model) {
             $model->deleteOnCloudflare();
+        });
+
+        static::saving(function (self $model) {
+            $model->record_identifier = $model->record_type->uniqueIdentifier($model->server);
         });
     }
 
@@ -129,7 +134,6 @@ class Subdomain extends Model implements HasLabel
         // @phpstan-ignore staticMethod.notFound
         $searchResponse = Http::cloudflare()->get("zones/{$this->domain->cloudflare_id}/dns_records", [
             'name' => $searchName,
-            'type' => $this->record_type,
         ])->json();
 
         if ($searchResponse['success']) {
@@ -137,7 +141,16 @@ class Subdomain extends Model implements HasLabel
 
             foreach ($results as $record) {
                 if ($record['id'] !== $this->cloudflare_id) {
-                    throw new Exception('A subdomain with that name already exists');
+                    $recordType = $record['type'];
+                    $isConflict = match ($this->record_type) {
+                        RecordType::CNAME => true,
+                        RecordType::A, RecordType::AAAA => in_array($recordType, [$this->record_type->value, 'CNAME'], true),
+                        RecordType::SRV => in_array($recordType, ['CNAME', 'SRV']),
+                    };
+
+                    if ($isConflict) {
+                        throw new Exception("A $recordType record already exists for this subdomain");
+                    }
                 }
             }
         } else {

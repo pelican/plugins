@@ -5,6 +5,7 @@ namespace Boy132\PlayerCounter;
 use App\Contracts\Plugins\HasPluginSettings;
 use App\Traits\EnvironmentWriterTrait;
 use Filament\Contracts\Plugin;
+use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
 use Filament\Panel;
@@ -42,6 +43,15 @@ class PlayerCounterPlugin implements HasPluginSettings, Plugin
                 ->hintIcon('tabler-question-mark')
                 ->hintIconTooltip(trans('player-counter::query.use_alias_hint'))
                 ->inline(false),
+            TextInput::make('query_rate_limit')
+                ->label(trans('player-counter::query.query_rate_limit'))
+                ->hintIcon('tabler-question-mark')
+                ->hintIconTooltip(trans('player-counter::query.query_rate_limit_hint'))
+                ->suffix(trans('player-counter::query.query_rate_limit_suffix'))
+                ->required()
+                ->numeric()
+                ->integer()
+                ->minValue(0),
         ];
     }
 
@@ -49,6 +59,7 @@ class PlayerCounterPlugin implements HasPluginSettings, Plugin
     {
         $this->writeToEnvironment([
             'PLAYER_COUNTER_USE_ALIAS' => $data['use_alias'],
+            'PLAYER_COUNTER_QUERY_RATE_LIMIT' => $data['query_rate_limit'],
         ]);
 
         Notification::make()

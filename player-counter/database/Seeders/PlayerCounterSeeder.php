@@ -122,7 +122,6 @@ class PlayerCounterSeeder extends Seeder
             }
         }
 
-        // @phpstan-ignore if.alwaysTrue
         if ($this->command) {
             $this->command->info('Created game query types for existing eggs');
         }

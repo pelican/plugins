@@ -32,12 +32,10 @@ class TawktoWidgetPlugin implements HasPluginSettings, Plugin
         return [
             TextInput::make('provider_id')
                 ->label('Provider ID')
-                ->required()
-                ->default(fn () => config('tawkto-widget.provider_id')),
+                ->required(),
             TextInput::make('widget_id')
                 ->label('Widget ID')
-                ->required()
-                ->default(fn () => config('tawkto-widget.widget_id')),
+                ->required(),
         ];
     }
 

@@ -40,8 +40,7 @@ class SnowflakesPlugin implements HasPluginSettings, Plugin
                 ->step(0.1)
                 ->tooltips()
                 ->hintIcon('tabler-question-mark')
-                ->hintIconTooltip(trans('snowflakes::strings.size_help'))
-                ->default(fn () => config('snowflakes.size')),
+                ->hintIconTooltip(trans('snowflakes::strings.size_help')),
             Slider::make('speed')
                 ->label(trans('snowflakes::strings.speed'))
                 ->range(minValue: 0.5, maxValue: 3)
@@ -49,8 +48,7 @@ class SnowflakesPlugin implements HasPluginSettings, Plugin
                 ->step(0.1)
                 ->tooltips()
                 ->hintIcon('tabler-question-mark')
-                ->hintIconTooltip(trans('snowflakes::strings.speed_help'))
-                ->default(fn () => config('snowflakes.speed')),
+                ->hintIconTooltip(trans('snowflakes::strings.speed_help')),
             Slider::make('opacity')
                 ->label(trans('snowflakes::strings.opacity'))
                 ->range(minValue: 0.1, maxValue: 1)
@@ -58,8 +56,7 @@ class SnowflakesPlugin implements HasPluginSettings, Plugin
                 ->step(0.1)
                 ->tooltips()
                 ->hintIcon('tabler-question-mark')
-                ->hintIconTooltip(trans('snowflakes::strings.opacity_help'))
-                ->default(fn () => config('snowflakes.opacity')),
+                ->hintIconTooltip(trans('snowflakes::strings.opacity_help')),
             Slider::make('density')
                 ->label(trans('snowflakes::strings.density'))
                 ->range(minValue: 0.5, maxValue: 10)
@@ -67,8 +64,7 @@ class SnowflakesPlugin implements HasPluginSettings, Plugin
                 ->step(0.1)
                 ->tooltips()
                 ->hintIcon('tabler-question-mark')
-                ->hintIconTooltip(trans('snowflakes::strings.density_help'))
-                ->default(fn () => config('snowflakes.density')),
+                ->hintIconTooltip(trans('snowflakes::strings.density_help')),
             Slider::make('quality')
                 ->label(trans('snowflakes::strings.quality'))
                 ->range(minValue: 0.1, maxValue: 1)
@@ -76,8 +72,7 @@ class SnowflakesPlugin implements HasPluginSettings, Plugin
                 ->step(0.1)
                 ->tooltips()
                 ->hintIcon('tabler-question-mark')
-                ->hintIconTooltip(trans('snowflakes::strings.quality_help'))
-                ->default(fn () => config('snowflakes.quality')),
+                ->hintIconTooltip(trans('snowflakes::strings.quality_help')),
         ];
 
         return [

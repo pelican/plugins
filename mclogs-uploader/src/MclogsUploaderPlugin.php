@@ -34,8 +34,7 @@ class MclogsUploaderPlugin implements HasPluginSettings, Plugin
                 ->label(trans('mclogs-uploader::upload.only_minecraft_eggs'))
                 ->hintIcon('tabler-question-mark')
                 ->hintIconTooltip(trans('mclogs-uploader::upload.only_minecraft_eggs_hint'))
-                ->inline(false)
-                ->default(fn () => config('mclogs-uploader.only_minecraft_eggs')),
+                ->inline(false),
         ];
     }
 

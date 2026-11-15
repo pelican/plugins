@@ -41,8 +41,7 @@ class PlayerCounterPlugin implements HasPluginSettings, Plugin
                 ->label(trans('player-counter::query.use_alias'))
                 ->hintIcon('tabler-question-mark')
                 ->hintIconTooltip(trans('player-counter::query.use_alias_hint'))
-                ->inline(false)
-                ->default(fn () => config('player-counter.use_alias')),
+                ->inline(false),
         ];
     }
 

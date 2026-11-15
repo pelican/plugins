@@ -57,27 +57,23 @@ class UserCreatableServersPlugin implements HasPluginSettings, Plugin
                         ->label('Default database limit')
                         ->required()
                         ->numeric()
-                        ->minValue(0)
-                        ->default(fn () => config('user-creatable-servers.database_limit')),
+                        ->minValue(0),
                     TextInput::make('allocation_limit')
                         ->label('Default allocation limit')
                         ->required()
                         ->numeric()
-                        ->minValue(0)
-                        ->default(fn () => config('user-creatable-servers.allocation_limit')),
+                        ->minValue(0),
                     TextInput::make('backup_limit')
                         ->label('Default backup limit')
                         ->required()
                         ->numeric()
-                        ->minValue(0)
-                        ->default(fn () => config('user-creatable-servers.backup_limit')),
+                        ->minValue(0),
                     TextInput::make('subdomain_limit')
                         ->label('Default subdomain limit')
                         ->visible(fn () => $this->hasSubdomainsPlugin())
                         ->required()
                         ->numeric()
-                        ->minValue(0)
-                        ->default(fn () => config('user-creatable-servers.subdomain_limit')),
+                        ->minValue(0),
                 ]),
             Section::make('User Settings')
                 ->columns()
@@ -86,14 +82,12 @@ class UserCreatableServersPlugin implements HasPluginSettings, Plugin
                         ->label('Can users update servers?')
                         ->hintIcon('tabler-question-mark')
                         ->hintIconTooltip('If checked users can update the resource limits of their servers after creation.')
-                        ->inline(false)
-                        ->default(fn () => config('user-creatable-servers.can_users_update_servers')),
+                        ->inline(false),
                     Toggle::make('can_users_delete_servers')
                         ->label('Can users delete servers?')
                         ->hintIcon('tabler-question-mark')
                         ->hintIconTooltip('If checked users can delete their own servers.')
-                        ->inline(false)
-                        ->default(fn () => config('user-creatable-servers.can_users_delete_servers')),
+                        ->inline(false),
                 ]),
             Section::make('Deployment Settings')
                 ->columns()
@@ -101,14 +95,12 @@ class UserCreatableServersPlugin implements HasPluginSettings, Plugin
                     TagsInput::make('deployment_tags')
                         ->label('Node tags')
                         ->hintIcon('tabler-question-mark')
-                        ->hintIconTooltip('Only nodes with these tags will be used for deployment. Leave empty to allow all nodes.')
-                        ->default(fn () => array_filter(explode(',', config('user-creatable-servers.deployment_tags')))),
+                        ->hintIconTooltip('Only nodes with these tags will be used for deployment. Leave empty to allow all nodes.'),
                     TagsInput::make('deployment_ports')
                         ->label('Ports')
                         ->placeholder('New port or port range')
                         ->hintIcon('tabler-question-mark')
-                        ->hintIconTooltip('These ports will be used for deployment. You can enter individual ports or port ranges. (e.g. 8000-8100) Leave empty to create servers with any allocations.')
-                        ->default(fn () => array_filter(explode(',', config('user-creatable-servers.deployment_ports')))),
+                        ->hintIconTooltip('These ports will be used for deployment. You can enter individual ports or port ranges. (e.g. 8000-8100) Leave empty to create servers with any allocations.'),
                     Select::make('allowed_eggs')
                         ->label('Allowed eggs')
                         ->options(fn () => Egg::all()->mapWithKeys(fn (Egg $egg) => [$egg->id => $egg->name]))
@@ -116,8 +108,7 @@ class UserCreatableServersPlugin implements HasPluginSettings, Plugin
                         ->preload()
                         ->multiple()
                         ->columnSpanFull()
-                        ->placeholder('All eggs')
-                        ->default(fn () => array_filter(explode(',', config('user-creatable-servers.allowed_eggs')))),
+                        ->placeholder('All eggs'),
                 ]),
         ];
     }

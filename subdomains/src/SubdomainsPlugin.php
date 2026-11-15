@@ -45,13 +45,11 @@ class SubdomainsPlugin implements HasPluginSettings, Plugin
                 ->label(trans('subdomains::strings.api_token'))
                 ->required()
                 ->hintIcon('tabler-question-mark')
-                ->hintIconTooltip(trans('subdomains::strings.api_token_help'))
-                ->default(fn () => config('subdomains.token')),
+                ->hintIconTooltip(trans('subdomains::strings.api_token_help')),
             TagsInput::make('blacklist')
                 ->label(trans('subdomains::strings.subdomain_blacklist'))
                 ->hintIcon('tabler-question-mark')
-                ->hintIconTooltip(trans('subdomains::strings.subdomain_blacklist_help'))
-                ->default(fn () => array_filter(explode(',', config('subdomains.subdomain_blacklist')))),
+                ->hintIconTooltip(trans('subdomains::strings.subdomain_blacklist_help')),
         ];
     }
 

@@ -15,10 +15,12 @@ class SubdomainService
     public function handle(array $data, ?Subdomain $subdomain = null): Subdomain
     {
         $newSubdomain = true;
+        $originalAttributes = [];
 
         if (is_null($subdomain)) {
             $subdomain = Subdomain::create($data);
         } else {
+            $originalAttributes = $subdomain->getRawOriginal();
             $subdomain->update($data);
             $newSubdomain = false;
         }
@@ -30,6 +32,9 @@ class SubdomainService
         } catch (Exception $exception) {
             if ($newSubdomain) {
                 $subdomain->delete();
+            } else {
+                $subdomain->setRawAttributes($originalAttributes);
+                $subdomain->saveQuietly();
             }
 
             throw $exception;

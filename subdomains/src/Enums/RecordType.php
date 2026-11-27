@@ -20,6 +20,17 @@ enum RecordType: string implements HasLabel
         return $this->name;
     }
 
+    public function uniqueIdentifier(Server $server): string
+    {
+        if ($this !== self::SRV) {
+            return $this->value;
+        }
+
+        $serviceType = SRVServiceType::fromServer($server);
+
+        return $serviceType ? $serviceType->value : 'SRV';
+    }
+
     /**
      * Returns errors that prevent this record type from being used with the provided server and domain.
      * If empty, then this record type is allowed to be used.
@@ -35,7 +46,7 @@ enum RecordType: string implements HasLabel
 
         $targetAddress = '';
         if ($allocation) {
-            if (in_array($allocation->ip, ['0.0.0.0', '::'])) {
+            if (in_array($this, [self::A, self::AAAA]) && in_array($allocation->ip, ['0.0.0.0', '::'])) {
                 $errors->add('Allocation ip is invalid (0.0.0.0 or ::)');
             }
 
@@ -63,7 +74,7 @@ enum RecordType: string implements HasLabel
             $errors->add('Server has no allocation');
         }
 
-        if (in_array($targetAddress, ['0.0.0.0', '::'])) {
+        if (in_array($this, [self::A, self::AAAA]) && in_array($targetAddress, ['0.0.0.0', '::'])) {
             $errors->add('Allocation target address is invalid (0.0.0.0 or ::)');
         }
 
